@@ -17,6 +17,26 @@ The previously separate host-side updates are now included in the source and ins
 
 The individual changes were tested during the Pi trials. **This consolidated fresh installation has not yet been tested on the Pi.** Keyboard styling can be refined later. Audio latency remains under investigation; this update does not claim a new audio fix. DDJ-400 compatibility is unverified for this combined build.
 
+## Screenshots
+
+Screenshots from the Pi trials on the original 800×480 display. The main, SOURCE and BROWSE views show v6 button styling. The SEARCH screenshot shows the native grey keyboard before the later v9b navy recolour.
+
+### Main display
+
+![RX3 main display with dual waveforms, deck information and six top-row buttons](docs/screenshots/main-display.png)
+
+### SOURCE
+
+![RX3 SOURCE screen with USB device selection and device information](docs/screenshots/source.png)
+
+### BROWSE
+
+![RX3 BROWSE screen showing folders and tracks on USB](docs/screenshots/browse.png)
+
+### SEARCH keyboard
+
+![RX3 native SEARCH screen with results and the on-screen keyboard before the v9b navy recolour](docs/screenshots/search-keyboard.png)
+
 ## Install
 
 Use Raspberry Pi OS/Debian 13 (trixie), 64-bit, and run as your normal user:
