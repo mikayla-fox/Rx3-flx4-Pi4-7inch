@@ -1,3 +1,5 @@
+> **Pi 4 combined build:** See the [current README](README.md) and [Pi 4 install notes](docs/PI4-INSTALL.md). This document retains the upstream reference/history.
+
 # Installing
 
 Run every command **on the Raspberry Pi**, as your normal login user. Nothing here needs a
@@ -101,6 +103,52 @@ appears on the display. A USB mouse works as a pointer until you attach a touchs
 
 ---
 
+# This branch: the 7-inch layout
+
+`7inch` is the branch for the Raspberry Pi Touch Display 2 and any other touch panel. It differs from
+`main` only in what is drawn and how:
+
+- The firmware's 1280x800 picture is scaled in **one bilinear pass** straight to the panel, instead of two
+  nearest-neighbour steps through a 1920x1200 canvas. Moving waveforms no longer shimmer and text is
+  cleaner. On a 16:9 panel the fit is exact: 1152x720 plus a 128 px sidebar on 1280x720, 2304x1440
+  plus 256 px on 2560x1440.
+- Frames are composed off-screen and copied right after the panel's vertical blank, at the panel rate
+  (60 Hz), and only when the firmware picture, a button or the pointer actually changed. Idle costs a
+  few percent of one core; a playing deck (the firmware repaints about 38 times a second) costs about
+  60 % of one Pi 5 core.
+- The on-screen mixer (deck faders, master, headphone mix and level, crossfader, cue buttons) and the
+  BACK/UP/DOWN/ENTER/LOAD/PLAY buttons are gone. All of them exist on the DDJ-FLX4 (checked against the
+  bridge's mapping) or in the firmware's own touch UI. What remains is a sidebar with the four things the
+  FLX4 does not have: SOURCE, BROWSE, USB STOP 1 and USB STOP 2 (hold 2 s, timed by the firmware).
+- **Hold BROWSE for 2 s** to open the firmware's SHORTCUT settings screen (LCD and jog brightness, vinyl speed
+  adjust, waveform colour, quantize value, headphone mono split, fader curve ...), which had no way in before.
+  A shorter tap is the plain BROWSE key.
+- A USB mouse still works as a pointer, and `rx3-tap.py` now takes firmware coordinates (1280x800).
+
+Knobs for `rx3.conf`, on top of `RX3_FB` / `RX3_ROTATE`:
+
+| Variable | Effect |
+|---|---|
+| `RX3_FPS=30` | Timer rate when the display driver has no vertical-blank wait (otherwise the panel's rate is used) |
+| `RX3_FILTER=nearest` | Nearest-neighbour instead of bilinear; slightly cheaper, visibly coarser |
+| `RX3_CPU_MAX_MHZ=2000` | CPU clock cap while the player runs (default 2000; `0` = no cap). Lower clock, lower voltage, less heat |
+| `RX3_FW_IDLE_FPS=20` | Redraw rate when the screen is static (default 20; `0` = always full rate) |
+| `RX3_FW_FPS=30` | Cap the firmware's drawing at all times (default: none). Cooler, but the waveform scrolls less smoothly |
+| `RX3_QUANTIZE=off` | Quantize on both decks after the sticks attach: `off` (default), `on`, or `firmware` (leave it to the stick's MY SETTINGS) |
+| `RX3_AUTO_RESTART=1` | Restart the player if it exits or its audio stops (default `1`; `0` to leave it) |
+
+The presenter logs a line once a minute to `rx3-present.log`: frames shown per second, what share of the
+picture changed, and how long a frame took to scale and to copy to the panel. On a Pi 5 a playing deck is
+about 2 ms of work per frame.
+
+**How the picture gets to the panel.** The firmware draws into a memory file at its own 58.6 frames a second
+and tells the player shim when a frame is complete; the shim copies that finished frame aside and wakes the
+presenter, which redraws only the rows that changed, rotates them, and copies the result to the panel right
+after its vertical blank. Nothing samples a half-drawn frame any more, so waveforms no longer tear or
+shimmer, and an idle screen costs nothing.
+
+---
+
 # Debug tools
 
 **Keyboard hotkeys.** Plug in any USB keyboard, before or after boot. The firmware never sees it; a small
@@ -142,15 +190,16 @@ are drawn.
 
 Displays must be connected **at boot**; a framebuffer is not created on hotplug.
 
-**If the picture is upside down** for the way the panel is mounted, set the rotation. Create
-`rx3-handoff/rx3.conf` with one line and restart the service:
+**Orientation.** Portrait panels default to 90° and landscape ones to 0°. For the Touch Display 2 mounted on
+the DDJ-FLX4 the default, 90°, is right. If the picture is upside down for the way your panel is mounted, turn
+it 180° with a one-line `rx3-handoff/rx3.conf` and restart the service:
 
 ```bash
 echo 'RX3_ROTATE=270' > ~/rx3-handoff/rx3.conf     # 0, 90, 180 or 270, clockwise
 sudo systemctl restart rx3
 ```
 
-Portrait panels default to 90, landscape ones to 0. The touch mapping follows the same setting.
+(Delete the line, or set it to 90, to go back to the default.) The touch mapping follows the same setting.
 `rx3.conf` is also where `RX3_FB` and `RX3_FONT` go; it is sourced by every script.
 
 ---
@@ -177,6 +226,13 @@ from that same table by `install.sh`.
 ignores it, a push opens the library where you left it. On every other screen (library, source, the shortcut
 settings, menus) the push goes to the firmware as usual, so it selects or opens whatever is focused, exactly like
 tapping it. The bridge recognises the deck screen from the firmware's own picture.
+
+**Heat.** The Pi 5 in a closed pod with no fan reached 85 °C and throttled while the earlier presenter was
+using most of a core. The player now redraws a static screen at 20 frames a second instead of 54, the display
+only copies what changed, and the CPU clock is capped at 2.0 GHz while it runs. Measured on the SoC rails:
+an idle deck screen 1.3 W (was ~1.6 W), a playing deck 2.1 W (was 2.6 W), or 1.6 W with `RX3_FW_FPS=30`. `vcgencmd measure_temp` and
+`vcgencmd get_throttled` (anything but `0x0` means it has throttled since boot) tell you where you are. A fan or
+the official active cooler is still the safe choice inside an enclosure.
 
 **Unplugging the controller mid-set** does not stop the player. The decks keep playing silently at the right
 speed, and when the controller is plugged back in its audio and controls come back within a few seconds, with the
@@ -240,8 +296,8 @@ find out, and expect these to be the limits:
   mid-set.
 - **RAM.** A 3B+ has 1 GB, and the chroot mounts a 256 MB tmpfs. It fits, but do not expect to run a
   desktop alongside it. The installer disables the desktop anyway.
-- **The interface may feel sluggish.** The presenter composites and scales a full frame in software
-  on the CPU.
+- **The interface may feel sluggish.** The presenter scales and rotates in software on the CPU. It uses
+  NEON on 64-bit systems and only redraws what changed, but a 3B+ has a fraction of a Pi 5's speed.
 
 If audio breaks up, the first things to try are moving the USB stick to a powered hub, switching from
 Ethernet to Wi-Fi, and confirming the Pi is not reporting under-voltage:

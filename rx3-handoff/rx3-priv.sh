@@ -13,5 +13,9 @@ while read -r cmd arg <&3; do
       sync
       if mountpoint -q "$R$arg"; then umount "$R$arg" 2>/dev/null || umount -l "$R$arg"; fi
       $H/rx3-mtab.sh; logger -t rx3 "firmware unmounted $arg (USB STOP)" ;;
+    poweroff)
+      # Only the host touch bridge requests this after a continuous 3-second hold.
+      logger -t rx3 "SOURCE POWER OFF button: shutting down Raspberry Pi"
+      systemctl poweroff --no-block ;;
   esac
 done

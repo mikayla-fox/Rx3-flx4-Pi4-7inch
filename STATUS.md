@@ -1,3 +1,5 @@
+> **Pi 4 combined build:** See the [current README](README.md) and [Pi 4 install notes](docs/PI4-INSTALL.md). This document retains the upstream reference/history.
+
 # Status — 2026-10-09
 
 What works, what is unfinished, and what has not been tried. Controls are listed in [`KEYMAP.md`](KEYMAP.md);

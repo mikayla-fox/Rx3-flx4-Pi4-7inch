@@ -1,3 +1,5 @@
+> **Pi 4 combined build:** See the [current README](README.md) and [Pi 4 install notes](docs/PI4-INSTALL.md). This document retains the upstream reference/history.
+
 # Roadmap
 
 Planned work, in phases. Nothing here is implemented yet; each phase is meant to be done, tested on the Pi 5 +

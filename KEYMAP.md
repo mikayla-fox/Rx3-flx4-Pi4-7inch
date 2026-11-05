@@ -1,6 +1,6 @@
 # Key map — DDJ-FLX4 → XDJ-RX3 firmware
 
-What each control does, as mapped by `rx3-handoff/controller-bridge.py` (identical on every branch). The DDJ-400 uses
+What each control does, as mapped by `rx3-handoff/controller-bridge.py` (this fork's combined Pi 4 build). The DDJ-400 uses
 the same layout. "RX3" means the XDJ-RX3 function the firmware performs; everything not listed under
 [Not mapped](#not-mapped-yet) reaches the firmware.
 
@@ -16,11 +16,13 @@ the same layout. "RX3" means the XDJ-RX3 function the firmware performs; everyth
 | BEAT SYNC, long press | Make this deck the tempo MASTER | — |
 | LOOP IN | Loop in. During a loop: loop-in adjust (turn the jog, press again to finish) | Same |
 | LOOP OUT | Loop out. During a loop: loop-out adjust — turn the jog to move the loop end (one rotation = 1.8 s; anticlockwise shortens, down to ~7 ms for the stutter/roll effect), press again to finish | Same |
-| RELOOP/EXIT | Reloop / exit | Same |
+| 4 BEAT/EXIT | Start a 4-beat loop when no loop is active; exit an active loop | Existing shifted mapping |
 | CUE/LOOP CALL ◀ ▶ | Call previous / next memory cue or loop | Search back / forward (hold) |
 | Headphone CUE | Headphone cue on/off for the channel | **QUANTIZE on/off** for that deck (both start as `RX3_QUANTIZE`, default off) |
 
 ## Pads
+
+SHIFT + HOT CUE toggles Gate Cue while in Hot Cue mode; from another mode it returns to Hot Cue first. The indicator follows the firmware Gate Cue state.
 
 | Pad mode button | FLX4 pads | RX3 |
 |---|---|---|
@@ -99,3 +101,7 @@ FLX4 controls that send MIDI the bridge ignores (see [`ROADMAP.md`](ROADMAP.md),
 RX3 functions with no FLX4 control: VINYL/CDJ jog mode, MASTER TEMPO (key lock), SLIP LOOP pad mode, TRACK
 SEARCH ◀ ▶, REVERSE, beat FX on the MIC channel, MIC/AUX inputs, recording. Several are reachable on the
 touch screen.
+
+## Pi touchscreen top row
+
+SOURCE, BROWSE, USB1 and USB2 preserve their existing navigation/hold actions. SEARCH sends the native search tap on release. POWER requires a continuous 3-second hold and cancels on early release or leaving its button.

@@ -97,11 +97,60 @@ jog_scale = float(os.environ.get('RX3_JOG_SCALE', '1'))
 
 def note(status, n, vel):
     ch = status & 0x0F; down = (status & 0xF0) == 0x90 and vel > 0
+    # SHIFT + HOT CUE: toggle RX3 HOT CUE / GATE CUE.
+    # FLX4 sends 0x69 (normally Keyboard mode).
+    if ch in (0, 1) and n == 0x69:
+        if down:
+            deck = ch + 1
+            if pad_mode[deck] != 0x1B:
+                # From another pad mode, return to HOT CUE first.
+                select_pad_mode(deck, 0x1B)
+            else:
+                # Keep FLX4 pads on the HOT CUE MIDI layer.
+                show_pad_mode(deck)
+                # RX3 HOT CUE key toggles HOT CUE / GATE CUE.
+                press(K['hotcue'], deck, True)
+                press(K['hotcue'], deck, False)
+        return
+
     if ch in (0, 1) and n in PAD_MODES:
         if down: select_pad_mode(ch + 1, n)
         return
     if ch in (0, 1):
         deck = ch + 1
+        if n == 0x4D:  # FLX4 4 BEAT/EXIT
+            if not down:
+                return
+            if not firmware_leds.read():
+                # Keep original behaviour if loop state is unavailable.
+                press(K['reloop'], deck, True)
+                time.sleep(0.08)
+                press(K['reloop'], deck, False)
+                return
+
+            leds = firmware_leds.data
+            def loop_on(led_id):
+                offset = 16 + (led_id * 2 + deck - 1) * 8
+                return leds[offset] and leds[offset + 1] in (2, 3)
+
+            if loop_on(7) or loop_on(8):
+                # Existing loop: EXIT.
+                press(K['reloop'], deck, True)
+                time.sleep(0.08)
+                press(K['reloop'], deck, False)
+            else:
+                # No active loop: use BEAT LOOP pad 5.
+                was_mode = pad_mode[deck]
+                if was_mode != 0x6D:
+                    select_pad_mode(deck, 0x6D)
+                    time.sleep(0.12)
+                press(PAD[4], deck, True)
+                time.sleep(0.08)
+                press(PAD[4], deck, False)
+                if was_mode != 0x6D:
+                    time.sleep(0.12)
+                    select_pad_mode(deck, was_mode)
+            return
         name = DECK_NOTES.get(n)
         if name == 'jogtouch':
             if not down: jog_stop(deck)     # the RX3 needs a zero jog report or Play stays blocked after a scratch
@@ -118,7 +167,21 @@ def note(status, n, vel):
         if n == 0x63 and down: beatfx_index = (beatfx_index + 1) % 14; send(K['fxselect'], 5, 0, beatfx_index, float(beatfx_index)); return
         if n == 0x64 and down: beatfx_index = (beatfx_index - 1) % 14; send(K['fxselect'], 5, 0, beatfx_index, float(beatfx_index)); return
         if n in (0x10, 0x11, 0x14) and down:   # CH SELECT slide -> RX3 values: 0 CH1, 1 CH2, 2 MIC, 3 CF.A, 4 CF.B, MASTER = FXCH_MASTER
-            sel = CTL['fxch'].get((ch, n), 'master'); sel = FXCH_MASTER if sel == 'master' else sel
+            # On the DDJ-FLX4 the "1 & 2" position does not send a distinct note: it
+            # fires both selector notes back-to-back -- (ch4, 0x10) then (ch5, 0x11).
+            # Without this debounce the second press overwrites the first, leaving
+            # Beat FX applied to one deck only. Only the FLX4 pattern is debounced;
+            # DDJ-400 sends CH2 on (ch4, 0x11), which never matches (ch5, 0x11).
+            if (ch, n) in ((4, 0x10), (5, 0x11)):
+                now = time.time()
+                fx_sel_last[(ch, n)] = now
+                other = (5, 0x11) if (ch, n) == (4, 0x10) else (4, 0x10)
+                if (now - fx_sel_last.get(other, 0)) < 0.04:
+                    sel = FXCH_BOTH
+                else:
+                    sel = CTL['fxch'].get((ch, n), 'master'); sel = FXCH_MASTER if sel == 'master' else sel
+            else:
+                sel = CTL['fxch'].get((ch, n), 'master'); sel = FXCH_MASTER if sel == 'master' else sel
             send(K['fxch'], 5, 0, sel, float(sel)); return
         return
     elif ch == 6:
@@ -140,11 +203,11 @@ def note(status, n, vel):
             return
     elif ch in (7, 9):                      # performance pads, deck 1 / deck 2
         deck = 1 if ch == 7 else 2
-        if n < 0x08 or 0x20 <= n < 0x28 or 0x60 <= n < 0x68:
+        if n < 0x08 or 0x20 <= n < 0x28 or 0x40 <= n < 0x48 or 0x60 <= n < 0x68:
             press(PAD[n & 7], deck, down); return
     elif ch in (8, 10):                     # shift + pads
         deck = 1 if ch == 8 else 2
-        if n < 0x08: press(K['shift'], deck, True); press(PAD[n & 7], deck, down); press(K['shift'], deck, False); return
+        if n < 0x08 or 0x40 <= n < 0x48: press(K['shift'], deck, True); press(PAD[n & 7], deck, down); press(K['shift'], deck, False); return
 
 def cc(status, c, v):
     ch = status & 0x0F
@@ -215,8 +278,19 @@ PAD_LAYER = {0x1B: 0x00, 0x6D: 0x60, 0x20: 0x20}             # FLX4 pad note bas
 RX3_PAD_MODE = {0x1B: ('hotcue', 14), 0x6D: ('autobeatloop', 15), 0x20: ('beatjump', 17)}   # RX3 key, firmware LED id
 pad_mode = {1: 0x1B, 2: 0x1B}
 rx3_mode = {1: 0x1B, 2: 0x1B}       # last RX3 mode we set; only used while the firmware LED table is unavailable
+def gate_cue_mode(deck):
+    return (
+        pad_mode[deck] == 0x1B
+        and firmware_leds.data is not None
+        and firmware_leds.lit(14, deck, steady=True)
+        and firmware_leds.rgb(14, deck) == (230, 255, 0)
+    )
+
 def show_pad_mode(deck):
-    for n in PAD_MODES: led(0x90 + deck - 1, n, n == pad_mode[deck])
+    # Use FLX4 shifted HOT CUE mode LED for Gate Cue.
+    visible = 0x69 if gate_cue_mode(deck) else pad_mode[deck]
+    for n in PAD_MODES:
+        led_set(0x90 + deck - 1, n, n == visible)
 def select_pad_mode(deck, n):
     pad_mode[deck] = n; show_pad_mode(deck)
     for k in [k for k in led_sent if k[0] == 0x97 + 2 * (deck - 1)]: del led_sent[k]   # the new layer's pads: resend
@@ -283,6 +357,7 @@ def meter_step(db):
 led_sent = {}
 def led_set(status, note, on):
     if led_sent.get((status, note)) != on: led_sent[(status, note)] = on; led(status, note, on)
+previous_pad_layer = {1: None, 2: None}
 def led_loop():
     time.sleep(1.0)
     for d in (1, 2): show_pad_mode(d)
@@ -301,12 +376,19 @@ def led_loop():
         led_set(0x96, 0x63, firmware_leds.lit(MASTER_CUE_LED, 1, now=now))
         fx = firmware_leds.active(BEAT_FX_LED, 1, now=now); led_set(0x94, 0x47, fx); led_set(0x95, 0x47, fx)
         for d in (1, 2):
+            show_pad_mode(d)
             vu = round(meter_step(firmware_leds.level_db(d)) * 127 / 11)
             if led_sent.get(('vu', d)) != vu: led_sent[('vu', d)] = vu; midi_write(bytes([0xB0 + d - 1, 0x02, vu]))
             for led_id, n in DECK_LEDS.items(): led_set(0x90 + d - 1, n, firmware_leds.lit(led_id, d, now=now))
             for led_id, n in ACTIVE_LEDS.items(): led_set(0x90 + d - 1, n, firmware_leds.active(led_id, d, now=now))
-            base = PAD_LAYER.get(pad_mode[d])
+            base = 0x40 if gate_cue_mode(d) else PAD_LAYER.get(pad_mode[d])
             if base is None: continue
+            if previous_pad_layer[d] != base:
+                status = 0x97 + 2 * (d - 1)
+                for k in list(led_sent):
+                    if k[0] == status:
+                        del led_sent[k]
+                previous_pad_layer[d] = base
             for i in range(8): led_set(0x97 + 2 * (d - 1), base + i, firmware_leds.lit(18 + i, d, now=now))
 threading.Thread(target=led_loop, daemon=True).start()
 
@@ -322,6 +404,8 @@ def select_cfx():
 threading.Timer(2.0, select_cfx).start()
 beatfx_index = 0
 FXCH_MASTER = int(os.environ.get('RX3_FXCH_MASTER', '5'))
+FXCH_BOTH   = int(os.environ.get('RX3_FXCH_BOTH', str(FXCH_MASTER)))
+fx_sel_last = {}
 
 buf = b''
 with open(dev if dev != '-' else 0, 'rb', buffering=0) as f:
