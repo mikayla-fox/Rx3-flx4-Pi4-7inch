@@ -8,7 +8,7 @@ Use the root `install-rx3.sh` as described in the README. `--fresh` builds a new
 
 Check SOURCE, BROWSE, USB1/USB2, native SEARCH and keyboard touch alignment. Check short taps and existing shortcut holds, the left-to-right hold fill, and POWER cancellation by releasing early or moving outside the button. A completed POWER hold shuts down the Pi.
 
-Check FLX4 playback, both audio channels/headphones, 4-beat loop and exit, Gate Cue and Beat FX channel selection. Confirm waveform behaviour and latency with wired audio. The combined fresh-install path is pending this hardware test.
+Check FLX4 BROWSE-knob push from the main deck (must open the library), rotary track scrolling in BROWSE, and rotary push on a highlighted track (must open the load/deck-selection menu). This is the Pi-tested two-area detector: firmware white-pixel counts were deck 75/75 and library 204/0; the old additional regions were 0/0 on deck and caused a false negative. Check FLX4 playback, both audio channels/headphones, 4-beat loop and exit, Gate Cue and Beat FX channel selection. Confirm waveform behaviour and latency with wired audio. The combined fresh-install path is pending this hardware test.
 
 ## Mapping detail
 
