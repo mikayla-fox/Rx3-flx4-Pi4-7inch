@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pi 4 + original Raspberry Pi 7-inch display, combined v9b installation.
+# Pi 4 + original Raspberry Pi 7-inch display, combined v9b + Pi-tested browse-knob fix installation.
 set -Eeuo pipefail
 repo="$(cd "$(dirname "$0")" && pwd)"
 cd "$repo/rx3-handoff"
@@ -45,5 +45,5 @@ fi
 bash ./install.sh
 sudo systemctl mask getty@tty1.service
 sudo systemctl enable rx3.service
-printf '\nCombined v9b files installed. A full reboot is required to activate them.\n'
+printf '\nCombined v9b + browse-knob fix files installed. A full reboot is required to activate them.\n'
 printf 'When ready: sudo reboot\nBackup: %s\n' "$backup"
