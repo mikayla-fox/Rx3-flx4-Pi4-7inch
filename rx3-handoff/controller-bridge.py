@@ -42,11 +42,14 @@ def analog(key, ch, v): send(key, 4, ch, 0, v)
 
 # ---- is the firmware showing its deck (play) screen? ----
 # The deck screen always has the same white labels in its two bottom panels ("TRACK", "TEMPO" for each deck),
-# whether or not tracks are loaded or playing, and with the INFO panel open. Measured on firmware 1.19: 75, 75,
-# 128, 128 lit pixels in these boxes; the library, source and shortcut screens have nothing like it. Reading the
+# whether or not tracks are loaded or playing, and with the INFO panel open. Measured on firmware 1.19:
+# the first two regions have 75/75 lit pixels on deck versus 204/0 in the library. Reading the
 # firmware's own 1280x800 picture is self-correcting, unlike tracking screen changes we cannot all see.
 FW_FB = ROOT + '/dev/fb0'
-DECK_LABELS = (((36, 648, 80, 661), 75), ((676, 648, 720, 661), 75), ((396, 648, 441, 661), 128), ((1036, 648, 1081, 661), 128))
+# Pi-tested 5 Nov 2026: only these two label regions remain stable on the main deck.
+# Actual white-pixel counts: deck 75/75; library 204/0. The old additional
+# regions returned 0/0 on the deck and prevented BROWSE from opening by knob.
+DECK_LABELS = (((36, 648, 80, 661), 75), ((676, 648, 720, 661), 75))
 def deck_showing():
     try: fd = os.open(FW_FB, os.O_RDONLY)
     except OSError: return False
