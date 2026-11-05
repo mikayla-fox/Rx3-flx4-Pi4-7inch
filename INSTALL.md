@@ -1,3 +1,5 @@
+> **Pi 4 combined build:** See the [current README](README.md) and [Pi 4 install notes](docs/PI4-INSTALL.md). This document retains the upstream reference/history.
+
 # Installing
 
 Run every command **on the Raspberry Pi**, as your normal login user. Nothing here needs a

@@ -1,16 +1,47 @@
-# Rx3-flx4
+# RX3 on Raspberry Pi 4 + original 7-inch touchscreen
 
-Emulation, and cross-compatibility testing Pioneer XDJ-RX3 firmware (v1.19) player on a Raspberry Pi 5, with a Pioneer DDJ-FLX4 or DDJ-400 as the controller and sound card (the FLX4 is verified on hardware; the 400 is mapped from Pioneer's layout and Mixxx's mapping and awaits a real unit). The connected controller is detected automatically.
+Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **original Raspberry Pi 7-inch 800×480 DSI touchscreen**, and a **Pioneer DDJ-FLX4**. Based on [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4).
 
-This is a working research repository, not a finished firmware port or installer.
+## Latest combined build — v9b, 5 November 2026
 
-Branches: `main` is the HDMI-first layout with on-screen mixer controls; **`7inch`** is the touch-panel
-layout for the Raspberry Pi Touch Display 2 (bilinear scaling, 60 Hz, sidebar of four buttons), see the
-top of `INSTALL.md` there; `Dev_tools` carries the debug aids (keyboard hotkeys to stop/restart the player
-and dump diagnostics, `install.sh clean`, `rx3-logs.sh`), which are merged into both.
+The previously separate host-side updates are now included in the source and installer:
 
-Status: working daily-driver setup. See [`STATUS.md`](STATUS.md) for the feature-by-feature list, [`KEYMAP.md`](KEYMAP.md)
-for what every controller button does, and [`ROADMAP.md`](ROADMAP.md) for planned work.
+- Six raised top buttons: **SOURCE · BROWSE · USB1 · USB2 · SEARCH · POWER**.
+- Full-width firmware display below the button row, with matching touch coordinates.
+- Silver bevels, charcoal button faces, softer blue lettering and left-to-right hold progress.
+- Native SEARCH on finger release, with the working v9b navy recolour of the native letter keys. Auxiliary keyboard keys retain their native appearance.
+- Continuous three-second POWER hold; releasing or leaving the button cancels.
+- Startup repaint, AA display filtering and the Pi-tested DRM VBlank path with timer fallback.
+- FLX4 4-beat loop/exit, Shift + Hot Cue Gate Cue toggle/indicator, and Beat FX CH1/CH2/both selection from the archived installer bridge.
+- Pi 4 ARMv7 shim build, original DSI unblanking and BCM2711 USB-hub protection.
+
+The individual changes were tested during the Pi trials. **This consolidated fresh installation has not yet been tested on the Pi.** Keyboard styling can be refined later. Audio latency remains under investigation; this update does not claim a new audio fix. DDJ-400 compatibility is unverified for this combined build.
+
+## Install
+
+Use Raspberry Pi OS/Debian 13 (trixie), 64-bit, and run as your normal user:
+
+```bash
+git clone https://github.com/mikayla-fox/Rx3-flx4-Pi4-7inch.git ~/Rx3-flx4
+cd ~/Rx3-flx4
+bash install-rx3.sh --fresh
+```
+
+The installer installs dependencies, recovers the firmware from its upstream sources, builds the runtime and host helpers, and enables RX3 at boot. When it finishes, activate it with `sudo reboot`. It does not reboot automatically.
+
+### Existing installation
+
+Keep your current checkout, and use a **separate new checkout** so local trial edits and old sources remain available:
+
+```bash
+git clone https://github.com/mikayla-fox/Rx3-flx4-Pi4-7inch.git ~/Rx3-flx4-v9b
+cd ~/Rx3-flx4-v9b
+bash install-rx3.sh --update
+```
+
+Update mode preserves the existing recovered firmware/runtime and settings, saves the old host binaries, shim and service/rule files, and configures RX3 to use the new checkout. It prints the backup location. Activate with a full reboot when ready; do not apply while performing a DJ set. Keep the previous checkout and backup until the combined install is verified.
+
+See [the Pi 4 installation notes](docs/PI4-INSTALL.md), [controller key map](KEYMAP.md), and [upstream detailed installation reference](INSTALL.md).
 
 ## Firmware is not included
 
@@ -27,58 +58,10 @@ You supply them yourself, from the official sources:
 `rx3-handoff/recover-firmware.py` plus `firmware_image.py` perform the extraction. Place the results
 in `rx3-handoff/extracted/` and `build-rootfs.sh` will assemble the chroot from them.
 
-## Layout
+## Source layout
 
-| Path | Purpose |
-|------|---------|
-| `rx3-handoff/` | Everything that is copied to the Pi, into `~/rx3-handoff` |
-| `rx3-handoff/install.sh` | Host-side installer, and `install.sh doctor` to check prerequisites |
-| `rx3-handoff/rx3-env.sh`, `rx3_env.py` | Path resolution — why no username is hardcoded |
-| `rx3-handoff/*.in` | Templates for the udev rules and systemd unit, filled in by `install.sh` |
-| `rx3-handoff/legacy/` | Dead prototype code from the first machine. Ignore it |
-| `INSTALL.md` | Step-by-step bring-up, and troubleshooting |
-| `rx3-handoff/PI-SETUP-NOTES.md` | The detailed reference: key codes, audio routing, USB semantics, traps |
+`rx3-handoff/` contains the presenter, touch bridge, controller bridge, firmware-recovery tools, runtime builder and service installer. `install-rx3.sh` is the combined Pi 4 entry point. Paths are resolved from the checkout owner rather than a fixed username.
 
-### The interesting pieces
+## Credits and scope
 
-- **`fbshim.c` / `control-shim.c`** — preloaded into the firmware. They fake the framebuffer and
-  device ioctls, redirect ALSA onto the FLX4, inject control events, call the firmware's own mixer
-  routing functions, and hand privileged unmounts to a root helper.
-- **`controller-bridge.py` / `controllers.py`** — translate the controller's MIDI into the firmware's internal
-  key events; the table of known controllers (USB id, keep-alive, the few codes that differ) lives in
-  `controllers.py`, and detection picks the first one plugged in.
-- **`usb-attach.sh` / `usb-hotplug.sh` / `rx3-mtab.sh` / `rx3-priv.sh`** — present USB sticks to the
-  firmware through a copy-on-write overlay so the user's media is never modified, and satisfy the
-  firmware's mount-table and unmount expectations.
-- **`touch-bridge.c` / `fb-present.c`** — display presenter and touch/mouse input adapter.
-
-## Quick start
-
-Full steps are in **[`INSTALL.md`](INSTALL.md)**. In short, on the Pi:
-
-```bash
-git clone https://github.com/mutlisensor/Rx3-flx4.git   # not with sudo: you must own these files
-cd Rx3-flx4/rx3-handoff && chmod +x *.sh
-./install.sh deps                                       # Debian packages
-python3 recover-firmware.py && python3 extract_cramfs.py   # you supply the firmware
-./install.sh doctor                                     # checks prerequisites, changes nothing
-./build-rootfs.sh                                       # assembles the chroot
-./install.sh                                            # udev rules, systemd unit, helper binaries
-sudo systemctl enable --now rx3
-```
-
-To stop the player and hand the Pi back to its desktop, run `./install.sh desktop`. That also
-unmasks PipeWire, without which the desktop comes back silent.
-
-`./install.sh doctor` is the thing to run whenever something is unclear: it reports every
-prerequisite as ok or missing, names the apt package or the script that fixes each one, and
-changes nothing.
-
-No username is baked in. `rx3-env.sh` and `rx3_env.py` resolve every path from where the scripts
-live and who owns them, and each one can be overridden with an `RX3_*` environment variable.
-
-## Legal
-
-The scaffolding here is original work. It is published for interoperability and personal research on
-hardware you own. Pioneer/AlphaTheta firmware is not distributed with it and you need a legitimate
-copy to use any of this.
+Upstream emulation/interoperability work: [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4). Pi 4/original 7-inch integration and host UI trials: this fork. Pioneer/AlphaTheta firmware remains separate and is not distributed in this repository.
