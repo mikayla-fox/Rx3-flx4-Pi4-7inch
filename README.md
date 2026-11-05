@@ -2,6 +2,15 @@
 
 Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **original Raspberry Pi 7-inch 800×480 DSI touchscreen**, and a **Pioneer DDJ-FLX4**. Based on [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4).
 
+## Included controller mappings
+
+| Controller | Mapping status |
+|---|---|
+| Pioneer DDJ-FLX4 | Included; tested on hardware during the Pi trials. |
+| Pioneer DDJ-400 | Included with automatic detection; **untested on DDJ-400 hardware**. Compatibility and all controls still need verification. |
+
+These are the only two controller profiles included in this build.
+
 ## Latest combined build — v9b, 5 November 2026
 
 The previously separate host-side updates are now included in the source and installer:
