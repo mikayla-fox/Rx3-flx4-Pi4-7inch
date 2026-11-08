@@ -12,11 +12,11 @@ the same layout. "RX3" means the XDJ-RX3 function the firmware performs; everyth
 | CUE | Cue (RX3 cue behaviour: set, preview, return) | — *(not mapped: jump to start)* |
 | Jog wheel | Top: touch-sensitive, scratches/holds like the RX3 jog in VINYL mode; side: pitch bend | Fast search (×10) |
 | TEMPO slider | Tempo (signed: centre = 0 %) | — |
-| BEAT SYNC | Sync on/off | Tempo range (6/10/16 %/wide) |
+| BEAT SYNC | Sync on/off | Cycle this deck’s tempo range (±6% → ±10% → ±16% → WIDE) |
 | BEAT SYNC, long press | Make this deck the tempo MASTER | — |
 | LOOP IN | Loop in. During a loop: loop-in adjust (turn the jog, press again to finish) | Same |
 | LOOP OUT | Loop out. During a loop: loop-out adjust — turn the jog to move the loop end (one rotation = 1.8 s; anticlockwise shortens, down to ~7 ms for the stutter/roll effect), press again to finish | Same |
-| 4 BEAT/EXIT | Start a 4-beat loop when no loop is active; exit an active loop | Existing shifted mapping |
+| 4 BEAT/EXIT | FLX4 starts a native RX3 4-beat loop or exits an active loop. The current pad mode stays selected, including Gate Cue. | Existing shifted mapping |
 | CUE/LOOP CALL ◀ ▶ | Call previous / next memory cue or loop | Search back / forward (hold) |
 | Headphone CUE | Headphone cue on/off for the channel | **QUANTIZE on/off** for that deck (both start as `RX3_QUANTIZE`, default off) |
 

@@ -11,6 +11,10 @@ Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **
 
 These are the only two controller profiles included in this build.
 
+### DDJ-FLX4 mapping update — 8 November 2026
+
+**4 BEAT/EXIT** uses the RX3 firmware’s native four-beat loop. Press once to start a loop and again to exit. The current pad mode stays selected, including Gate Cue. Tested on the Raspberry Pi with a DDJ-FLX4.
+
 ## Latest combined build — v9b + tested browse-knob fix, 5 November 2026
 
 The previously separate host-side updates are now included in the source and installer:
@@ -21,7 +25,7 @@ The previously separate host-side updates are now included in the source and ins
 - Native SEARCH on finger release, with the working v9b navy recolour of the native letter keys. Auxiliary keyboard keys retain their native appearance.
 - Continuous three-second POWER hold; releasing or leaving the button cancels.
 - Startup repaint, AA display filtering and the Pi-tested DRM VBlank path with timer fallback.
-- FLX4 4-beat loop/exit, Shift + Hot Cue Gate Cue toggle/indicator, and Beat FX CH1/CH2/both selection from the archived installer bridge.
+- FLX4 Shift + Hot Cue Gate Cue toggle and indicator, plus Beat FX CH1/CH2/both selection from the archived installer bridge.
 - **Tested FLX4 BROWSE-knob fix:** pressing the knob on the main deck screen opens the library; turning it scrolls tracks, and pressing it in the library selects the highlighted track. Deck detection now uses the two measured stable firmware label regions (deck 75/75 versus library 204/0), avoiding the former four-region false negative.
 - Pi 4 ARMv7 shim build, original DSI unblanking and BCM2711 USB-hub protection.
 
