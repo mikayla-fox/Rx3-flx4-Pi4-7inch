@@ -144,6 +144,7 @@ def note(status, n, vel):
             else:
                 # No active loop: use BEAT LOOP pad 5.
                 was_mode = pad_mode[deck]
+                was_gate_cue = gate_cue_mode(deck)
                 if was_mode != 0x6D:
                     select_pad_mode(deck, 0x6D)
                     time.sleep(0.12)
@@ -153,6 +154,19 @@ def note(status, n, vel):
                 if was_mode != 0x6D:
                     time.sleep(0.12)
                     select_pad_mode(deck, was_mode)
+                    if was_gate_cue:
+                        # The FLX4's Hot Cue layer also carries Gate Cue. Wait for
+                        # the firmware to confirm Hot Cue before toggling it back.
+                        deadline = time.monotonic() + 0.3
+                        while time.monotonic() < deadline:
+                            if firmware_leds.read() and firmware_leds.lit(14, deck, steady=True):
+                                if gate_cue_mode(deck):
+                                    break
+                                if firmware_leds.rgb(14, deck) == (255, 255, 255):
+                                    press(K['hotcue'], deck, True)
+                                    press(K['hotcue'], deck, False)
+                                    break
+                            time.sleep(0.01)
             return
         name = DECK_NOTES.get(n)
         if name == 'jogtouch':
