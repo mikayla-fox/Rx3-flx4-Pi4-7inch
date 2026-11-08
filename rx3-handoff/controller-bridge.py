@@ -98,6 +98,26 @@ def jog_watchdog():
 threading.Thread(target=jog_watchdog, daemon=True).start()
 jog_scale = float(os.environ.get('RX3_JOG_SCALE', '1'))
 
+# The RX3 starts its native four-beat loop on a sustained LOOP IN press.
+AUTO_LOOP_HOLD_SECONDS = 1.2
+loop_in_sources = {1: set(), 2: set()}
+loop_in_lock = threading.Lock()
+
+def loop_in(deck, source, down):
+    # A physical LOOP IN release must not cut short the synthetic hold.
+    with loop_in_lock:
+        sources = loop_in_sources[deck]
+        was_down = bool(sources)
+        if down:
+            if source in sources:
+                return False
+            sources.add(source)
+        else:
+            sources.discard(source)
+        if was_down != bool(sources):
+            press(K['loopin'], deck, bool(sources))
+        return True
+
 def note(status, n, vel):
     ch = status & 0x0F; down = (status & 0xF0) == 0x90 and vel > 0
     # SHIFT + HOT CUE: toggle RX3 HOT CUE / GATE CUE.
@@ -141,10 +161,14 @@ def note(status, n, vel):
                 press(K['reloop'], deck, True)
                 time.sleep(0.08)
                 press(K['reloop'], deck, False)
+            elif ctl_id == 'flx4':
+                if loop_in(deck, 'auto', True):
+                    release = threading.Timer(AUTO_LOOP_HOLD_SECONDS, loop_in, (deck, 'auto', False))
+                    release.daemon = True
+                    release.start()
             else:
                 # No active loop: use BEAT LOOP pad 5.
                 was_mode = pad_mode[deck]
-                was_gate_cue = gate_cue_mode(deck)
                 if was_mode != 0x6D:
                     select_pad_mode(deck, 0x6D)
                     time.sleep(0.12)
@@ -154,21 +178,11 @@ def note(status, n, vel):
                 if was_mode != 0x6D:
                     time.sleep(0.12)
                     select_pad_mode(deck, was_mode)
-                    if was_gate_cue:
-                        # The FLX4's Hot Cue layer also carries Gate Cue. Wait for
-                        # the firmware to confirm Hot Cue before toggling it back.
-                        deadline = time.monotonic() + 0.3
-                        while time.monotonic() < deadline:
-                            if firmware_leds.read() and firmware_leds.lit(14, deck, steady=True):
-                                if gate_cue_mode(deck):
-                                    break
-                                if firmware_leds.rgb(14, deck) == (255, 255, 255):
-                                    press(K['hotcue'], deck, True)
-                                    press(K['hotcue'], deck, False)
-                                    break
-                            time.sleep(0.01)
             return
         name = DECK_NOTES.get(n)
+        if name == 'loopin' and ctl_id == 'flx4':
+            loop_in(deck, 'physical', down)
+            return
         if name == 'jogtouch':
             if not down: jog_stop(deck)     # the RX3 needs a zero jog report or Play stays blocked after a scratch
             press(K['jogtouch'], deck, down); return
