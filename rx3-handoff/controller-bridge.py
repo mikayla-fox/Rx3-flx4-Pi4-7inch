@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DJ controller -> XDJ-RX3 firmware control bridge (DDJ-FLX4, DDJ-400; see controllers.py).
+"""DJ controller -> XDJ-RX3 firmware control bridge (DDJ-FLX4, DDJ-400, DDJ-GRV6, DDJ-FLX6).
 
 Reads raw MIDI from the controller and translates it into the RX3 firmware's
 queued key messages on the chroot control FIFO (see control-shim.c):
@@ -10,7 +10,7 @@ MIDI map is the DDJ-400 family layout (documented by Pioneer, cross-checked agai
   note-on/off on ch0/ch1 = deck 1/2 buttons, ch6 = mixer/browse buttons, ch4/5 = Beat FX,
   ch7/ch9 = deck 1/2 pads (ch8/10 with SHIFT), CC on ch0/ch1 = deck knobs/faders, ch6 = master.
 Usage: controller-bridge.py [/dev/snd/midiC?D0]   (auto-detects the first connected known controller)
-       RX3_CONTROLLER=flx4|ddj400 forces the controller profile; a device of "-" reads MIDI from stdin and writes
+       RX3_CONTROLLER=flx4|ddj400|grv6|flx6 forces the controller profile; a device of "-" reads MIDI from stdin and writes
        outgoing MIDI (LEDs, keep-alive) to $RX3_MIDI_OUT, for testing a mapping without the hardware.
 """
 import glob, os, struct, sys, time, threading
@@ -281,10 +281,11 @@ CTL = controllers.CONTROLLERS[ctl_id]
 dev = sys.argv[1] if len(sys.argv) > 1 else (controllers.midi_device(found[0][0]) if found else None)
 if not dev: print('controller-bridge: %s has no MIDI device' % CTL['name'], file=sys.stderr); sys.exit(1)
 print('controller-bridge: %s on %s' % (CTL['name'], dev), flush=True)
-DECK_NOTES[CTL['censor']] = 'slip'          # SHIFT+PLAY (censor) drives the RX3's SLIP; the note differs per controller
+if CTL['censor'] is not None:
+    DECK_NOTES[CTL['censor']] = 'slip'          # SHIFT+PLAY (censor) drives the RX3's SLIP; the note differs per controller
 
 import threading
-try: midi_out = os.open(dev if dev != '-' else os.environ.get('RX3_MIDI_OUT', '/dev/null'), os.O_WRONLY | (0 if dev != '-' else os.O_CREAT | os.O_APPEND), 0o644)   # keep-alive, init, LEDs
+try: midi_out = os.open(dev if dev != '-' and not CTL.get('trial') else os.environ.get('RX3_MIDI_OUT', '/dev/null'), os.O_WRONLY | (0 if dev != '-' else os.O_CREAT | os.O_APPEND), 0o644)   # keep-alive, init, LEDs
 except OSError as e: print('controller-bridge: cannot open MIDI out:', e, file=sys.stderr, flush=True); sys.exit(3)
 out_lock = threading.Lock()
 def midi_write(b):
@@ -299,7 +300,8 @@ if CTL['keepalive']:
 
 # ---- LED feedback (the firmware's own panel LEDs are not available to us yet, so we mirror what we know locally) ----
 def led(status, note, on):
-    midi_write(bytes([status, note, 0x7F if on else 0x00]))
+    if not CTL.get('trial'):
+        midi_write(bytes([status, note, 0x7F if on else 0x00]))
 
 PAD_MODES = [0x1B, 0x6D, 0x20, 0x22, 0x1E, 0x6B, 0x69, 0x6F]  # hot cue, beat loop, beat jump, sampler, pad fx1/2, keyboard, key shift
 # The FLX4 pads send a different note range per pad mode, and only switch range when the host lights that mode's
@@ -421,7 +423,8 @@ def led_loop():
                         del led_sent[k]
                 previous_pad_layer[d] = base
             for i in range(8): led_set(0x97 + 2 * (d - 1), base + i, firmware_leds.lit(18 + i, d, now=now))
-threading.Thread(target=led_loop, daemon=True).start()
+if not CTL.get('trial'):
+    threading.Thread(target=led_loop, daemon=True).start()
 
 # ---- Sound Color FX: the RX3 needs an effect selected before the per-channel COLOR knobs do anything ----
 # Engine effect slots (SoundColorFxManager ctor order = type number): 1 FILTER, 2 NOISE, 3 SWEEP, 4 DUB ECHO, 5 SPACE,
@@ -438,6 +441,55 @@ FXCH_MASTER = int(os.environ.get('RX3_FXCH_MASTER', '5'))
 FXCH_BOTH   = int(os.environ.get('RX3_FXCH_BOTH', str(FXCH_MASTER)))
 fx_sel_last = {}
 
+# The two trial controllers use these common Pioneer addresses for decks 1/2.
+# Keep an allowlist so controls for other decks or vendor-specific modes do not
+# fall through to FLX4 shortcuts that happen to share the same MIDI address.
+TRIAL_DECK_NOTES = {0x0B, 0x0C, 0x3F, 0x10, 0x11, 0x58, 0x5C,
+                    0x60, 0x54, 0x1B, 0x20, 0x6D}
+TRIAL_MIXER_CC = {0x17, 0x18, 0x40, *MASTER_CC}
+
+def trial_message(status, address, value):
+    kind, channel = status & 0xF0, status & 0x0F
+    if kind == 0xB0:
+        if (channel in (0, 1) and address in (0x00, 0x20, *DECK_CC)
+                or channel == 6 and address in TRIAL_MIXER_CC
+                or ctl_id == 'grv6' and channel == 4 and address in (0x02, 0x22)):
+            cc(status, address, value)
+        return
+    if kind not in (0x80, 0x90):
+        return
+
+    down = kind == 0x90 and value > 0
+    if channel in (0, 1):
+        deck = channel + 1
+        if address in TRIAL_DECK_NOTES:
+            note(status, address, value)
+        elif address == 0x4D:
+            # Dedicated reloop/exit; bypass the FLX4's four-beat shortcut.
+            press(K['reloop'], deck, down)
+        elif ctl_id == 'grv6' and address in (0x1A, 0x35, 0x40):
+            press(K[{0x1A: 'mastertempo', 0x35: 'quantize', 0x40: 'slip'}[address]], deck, down)
+    elif channel == 6:
+        if address in (0x41, 0x46, 0x47):
+            note(status, address, value)
+        elif address == 0x65:
+            press(K['back'], 0, down)
+        elif address == 0x7A:
+            press(K['browse'], 0, down)
+    elif channel in (7, 9):
+        layer = address & ~7
+        if layer in (0x00, 0x20, 0x60):
+            deck = 1 if channel == 7 else 2
+            if down:
+                select_pad_mode(deck, {0x00: 0x1B, 0x20: 0x20, 0x60: 0x6D}[layer])
+            press(PAD[address & 7], deck, down)
+    elif ctl_id == 'grv6' and channel == 4:
+        if 0x20 <= address <= 0x2D and down:
+            index = address - 0x20
+            send(K['fxselect'], 5, 0, index, float(index))
+        elif address in (0x47, 0x4A, 0x4B, 0x10, 0x11, 0x14):
+            note(status, address, value)
+
 buf = b''
 with open(dev if dev != '-' else 0, 'rb', buffering=0) as f:
     while True:
@@ -453,5 +505,6 @@ with open(dev if dev != '-' else 0, 'rb', buffering=0) as f:
             d1, d2 = buf[1], buf[2]; buf = buf[3:]
             kind = s & 0xF0
             if LOG: print('%s midi %02x %02x %02x' % (time.strftime('%H:%M:%S'), s, d1, d2), flush=True)
-            if kind in (0x80, 0x90): note(s, d1, d2)
+            if CTL.get('trial'): trial_message(s, d1, d2)
+            elif kind in (0x80, 0x90): note(s, d1, d2)
             elif kind == 0xB0: cc(s, d1, d2)

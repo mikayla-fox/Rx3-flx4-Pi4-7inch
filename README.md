@@ -6,10 +6,29 @@ Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **
 
 | Controller | Mapping status |
 |---|---|
-| Pioneer DDJ-FLX4 | Included; tested on hardware during the Pi trials. |
-| Pioneer DDJ-400 | Included with automatic detection; **untested on DDJ-400 hardware**. Compatibility and all controls still need verification. |
+| Pioneer DDJ-FLX4 | Tested on the Raspberry Pi 4B with this build. |
+| Pioneer DDJ-400 | **Untested on DDJ-400 hardware in this build.** |
+| Pioneer DDJ-GRV6 | Experimental two-deck profile. **Untested on GRV6 hardware in this build.** |
+| Pioneer DDJ-FLX6 | Experimental two-deck profile. **Untested on FLX6 hardware in this build.** |
 
-These are the only two controller profiles included in this build.
+### GRV6 and FLX6 trial
+
+With one controller connected before startup, RX3 selects the profile and ALSA
+card automatically. The trial maps play/cue, load, browsing, tempo, basic mixer
+controls, loop in/out/reloop, and Hot Cue, Beat Loop and Beat Jump pads on
+decks 1 and 2. The GRV6 trial also maps basic Beat FX controls. It uses
+the reference 256-frame period and 1024-frame buffer. Both route master to
+USB playback channels 1/2 and headphone cue to 3/4.
+
+Jogs, controller LED feedback, decks 3/4, FLX6 Beat FX and controller-specific
+performance modes are outside this first trial. Test one controller at a time
+and check master and headphones at low volume before exercising the mappings.
+
+The profile behavior and audio routing were informed by
+[mortalinstrument's RX3 Pi 4 project](https://github.com/mortalinstrument/xdj-rx3-pi4).
+FLX6 input addresses use the
+[Pioneer MIDI message list](https://www.pioneerdj.com/-/media/pioneerdj/software-info/controller/ddj-flx6/ddj-flx6_midi_message_list_e1.pdf).
+The trial uses the existing RX3 bridge and requires no external mapping XML.
 
 ### DDJ-FLX4 mapping update — 8 November 2026
 
@@ -29,7 +48,7 @@ The previously separate host-side updates are now included in the source and ins
 - **Tested FLX4 BROWSE-knob fix:** pressing the knob on the main deck screen opens the library; turning it scrolls tracks, and pressing it in the library selects the highlighted track. Deck detection now uses the two measured stable firmware label regions (deck 75/75 versus library 204/0), avoiding the former four-region false negative.
 - Pi 4 ARMv7 shim build, original DSI unblanking and BCM2711 USB-hub protection.
 
-The v9b navy keyboard and the two-region FLX4 BROWSE-knob mapping were tested working on the user's Pi. **This consolidated fresh installation has not yet been tested on the Pi.** Keyboard styling can be refined later. Audio latency remains under investigation; this update does not claim a new audio fix. DDJ-400 compatibility is unverified for this combined build.
+The v9b navy keyboard and the two-region FLX4 BROWSE-knob mapping were tested working on the user's Pi. **The controller update was tested on the Pi with the FLX4 using the update installer. A fresh installation has not yet been tested.** Keyboard styling can be refined later. Audio latency remains under investigation; this update does not claim a new audio fix. DDJ-400 compatibility is unverified for this combined build.
 
 ## Screenshots
 
@@ -70,8 +89,14 @@ Keep your current checkout, and use a **separate new checkout** so local trial e
 ```bash
 git clone https://github.com/mikayla-fox/Rx3-flx4-Pi4-7inch.git ~/Rx3-flx4-v9b
 cd ~/Rx3-flx4-v9b
+# Reuse the recovered files from the original checkout.
+old="$HOME/Rx3-flx4/rx3-handoff"
+ln -sT "$old/extracted" rx3-handoff/extracted &&
+ln -sT "$old/runtime-symlinks.json" rx3-handoff/runtime-symlinks.json &&
 bash install-rx3.sh --update
 ```
+
+Set `old` to the original checkout's `rx3-handoff` directory if you installed it elsewhere.
 
 Update mode preserves the existing recovered firmware/runtime and settings, saves the old host binaries, shim and service/rule files, and configures RX3 to use the new checkout. It prints the backup location. Activate with a full reboot when ready; do not apply while performing a DJ set. Keep the previous checkout and backup until the combined install is verified.
 

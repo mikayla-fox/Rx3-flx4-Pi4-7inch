@@ -30,7 +30,7 @@ sysctl -q -w kernel.sched_rt_runtime_us=950000
 touch $R/dev/printkdrv0; mountpoint -q $R/dev/printkdrv0 || mount --bind /dev/null $R/dev/printkdrv0
 
 # --- audio card: the first connected known DJ controller (controllers.py), else the ALSA loopback ---------
-CARD=""; CONTROLLER=""
+CARD=""; CONTROLLER=""; PROFILE=""
 # Avoid power-cycling the Pi 4 BCM2711 USB hub during controller detection.
 # Keep the existing recovery behaviour on Pi 5 and other boards.
 PI4_USB=0
@@ -39,7 +39,11 @@ if grep -aq "brcm,bcm2711" /proc/device-tree/compatible 2>/dev/null; then PI4_US
 # everything, so a controller that is still missing is wedged: cut its power straight away instead of waiting 10 s.
 first_cut=10; [ "$(cut -d. -f1 /proc/uptime)" -ge 10 ] && first_cut=1
 for wait in $(seq 1 30); do                       # the controller can enumerate a few seconds after boot
-  det=$(python3 $H/controllers.py detect 2>/dev/null) && { CARD=${det##*alsa=}; CONTROLLER=$(echo "$det" | sed 's/.*name=\([^ ]*\).*/\1/'); }
+  if det=$(python3 "$H/controllers.py" detect 2>/dev/null); then
+    CARD=${det##*alsa=}
+    PROFILE=${det#* id=}; PROFILE=${PROFILE%% *}
+    CONTROLLER=${det#* name=}; CONTROLLER=${CONTROLLER%% *}
+  fi
   [ -n "$CARD" ] && break
   # A bus-powered controller that was attached while the Pi powered up often comes up wedged: lit, but never
   # signalling on USB, and nothing short of removing its power revives it. The Pi 5 has no per-port power
@@ -66,7 +70,12 @@ if [ -z "$CARD" ]; then
   CARD=Loopback
 fi
 echo "hw:CARD=$CARD" > $R/etc/rx3-ctl
-sed "s/hw:2,0/hw:CARD=$CARD,DEV=0/" $H/asound.conf > $R/etc/asound.conf
+audio_settings=(-e "s/hw:2,0/hw:CARD=$CARD,DEV=0/")
+if [ "$PROFILE" = grv6 ]; then
+  # Match the reference GRV6 route's PCM buffering.
+  audio_settings+=(-e 's/period_size 128/period_size 256/' -e 's/buffer_size 512/buffer_size 1024/')
+fi
+sed "${audio_settings[@]}" "$H/asound.conf" > "$R/etc/asound.conf"
 echo "audio card: $CARD${CONTROLLER:+ ($CONTROLLER)}"
 
 # --- reset interim UI state, then start the firmware -------------------------------------------

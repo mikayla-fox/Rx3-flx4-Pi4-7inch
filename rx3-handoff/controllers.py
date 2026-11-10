@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Known DJ controllers and how to find the one that is plugged in.
 
-Every supported controller is a Pioneer/AlphaTheta two-deck unit of the DDJ-400 family: they share one MIDI layout
-(deck buttons on channels 0/1, pads on 7-10, Beat FX on 4/5, mixer on 6) and a class-compliant 4-channel sound card
-(master on 1/2, headphones on 3/4). What differs is small and lives in the table below.
+The FLX4 and DDJ-400 share the original bridge layout. The GRV6 and FLX6
+use input-only trial profiles for RX3 decks 1 and 2.
 
 Detection uses the sound card's USB id (/proc/asound/cardN/usbid), falling back to the card name. Cards are
 enumerated in the order they were plugged in, so with two controllers attached the first one wins.
@@ -33,6 +32,17 @@ CONTROLLERS = {
         keepalive=None, keepalive_period=0, init=SYSEX_DDJ400_INIT,
         fxch={(4, 0x10): 0, (4, 0x11): 1, (4, 0x14): 'master'},
         censor=0x47,
+    ),
+    'grv6': dict(
+        name='DDJ-GRV6', usb=('2b73:004c',), alsa_hint='DDJGRV6',
+        keepalive=None, keepalive_period=0, init=None,
+        fxch={(4, 0x10): 0, (4, 0x11): 1, (4, 0x14): 'master'},
+        censor=None, trial=True,
+    ),
+    'flx6': dict(
+        name='DDJ-FLX6', usb=('2b73:0038',), alsa_hint='DDJFLX6',
+        keepalive=None, keepalive_period=0, init=None,
+        fxch={}, censor=None, trial=True,
     ),
 }
 
