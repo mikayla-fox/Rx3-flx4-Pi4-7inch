@@ -37,9 +37,23 @@ desktop_packages() {
     local package status plan operation planned_package
     local installed=()
     local candidates=(
-        chromium chromium-browser geany thonny rpi-imager
-        libreoffice-base libreoffice-calc libreoffice-draw libreoffice-impress
-        libreoffice-math libreoffice-writer evince
+        # Browsers, remote desktop, and Raspberry Pi desktop utilities
+        chromium chromium-browser chromium-common chromium-l10n chromium-sandbox
+        realvnc-vnc-server rpi-connect
+        agnostics rpi-imager piclone rp-bookshelf rp-prefapps rpi-userguide
+        # Editors and learning tools
+        geany geany-common thonny scratch scratch2 scratch3 sonic-pi
+        # Office applications, bundled support files, and document viewers
+        libreoffice-base libreoffice-base-core libreoffice-base-drivers
+        libreoffice-calc libreoffice-common libreoffice-core libreoffice-draw
+        libreoffice-gtk3 libreoffice-help-common libreoffice-help-en-us
+        libreoffice-impress libreoffice-java-common libreoffice-math
+        libreoffice-style-colibre libreoffice-writer evince evince-common
+        # Printing tools and drivers
+        cups cups-browsed cups-client cups-common cups-core-drivers
+        cups-daemon cups-filters cups-filters-core-drivers cups-ipp-utils
+        cups-ppdc cups-server-common printer-driver-gutenprint rpinters
+        system-config-printer system-config-printer-common system-config-printer-udev
     )
 
     for package in "${candidates[@]}"; do

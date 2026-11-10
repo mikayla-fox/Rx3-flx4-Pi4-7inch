@@ -424,13 +424,16 @@ time, disk usage, memory, SSH and RX3 status, Pi throttling, and ALSA devices.
 It runs independently of the RX3 installer and works over SSH.
 
 On a Raspberry Pi OS Desktop image dedicated to RX3, preview optional desktop
-app cleanup with `./provision.sh --packages`. If you want to remove the apps
-shown, run `./provision.sh --apply-packages` in an interactive terminal and
+app cleanup with `./provision.sh --packages`. The list covers web browsers,
+remote desktop apps, Pi desktop utilities, learning tools, LibreOffice, PDF
+viewers, and printing tools. If you want to remove the apps shown, run `./provision.sh --apply-packages` in an interactive terminal and
 review APT's confirmation. The script refuses a preview plan that removes
 packages outside its app list or installs or configures other packages.
 Raspberry Pi OS Lite may have none of these apps installed.
 
-The helper leaves service configuration, networking, SSH, and boot settings
-alone. It skips OS upgrades and automatic dependency removal.
+The helper does not mask or disable system services. Removing optional printing
+or remote desktop packages also removes their own services. SSH, networking,
+and boot packages are outside the cleanup list. The helper skips OS upgrades
+and automatic dependency removal.
 
 The workflow was inspired by [StandaloneMixxx provisioning](https://github.com/ghztomash/StandaloneMixxx/blob/794636458faebf87ff9fb8f0f6981ce3c5e5cbd5/provision.sh).
