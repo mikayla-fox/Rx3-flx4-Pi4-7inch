@@ -87,6 +87,7 @@ jog_last = {1: 0.0, 2: 0.0}; jog_active = {1: False, 2: False}
 # needle work; speed alone moves nothing there. These controllers send 720 ticks per rotation: 9 pulses per tick.
 JOG_PULSES_PER_TICK = 6480 // 720
 jog_pos = {1: 0, 2: 0}
+flx4_scratch_last = {1: None, 2: None}
 def jog_stop(deck):
     if jog_active[deck]: jog_active[deck] = False; send(K['jog'], 4, deck, 0, 0.0, jog_pos[deck])
 def jog_moved(deck): jog_last[deck] = time.time(); jog_active[deck] = True
@@ -184,6 +185,8 @@ def note(status, n, vel):
             loop_in(deck, 'physical', down)
             return
         if name == 'jogtouch':
+            if ctl_id == 'flx4':
+                flx4_scratch_last[deck] = 0.0 if down else None
             if not down: jog_stop(deck)     # the RX3 needs a zero jog report or Play stays blocked after a scratch
             press(K['jogtouch'], deck, down); return
         if name == 'hpcue': press(K['hpcue'], deck, down); return
@@ -256,6 +259,15 @@ def cc(status, c, v):
         if c in JOG_CC:
             delta = v - 64                  # the controller sends 64 +/- ticks
             jog_pos[deck] = (jog_pos[deck] + round(delta * JOG_PULSES_PER_TICK * jog_scale)) & 0xFFFF
+            if ctl_id == 'flx4' and c == 0x22 and flx4_scratch_last[deck] is not None:
+                # RX3 jog speed is seconds of audio moved per second, not MIDI ticks.
+                now = time.monotonic()
+                previous = flx4_scratch_last[deck]
+                # Bound the interval for queued MIDI packets and the first tick after idle.
+                elapsed = max(0.005, now - previous) if jog_active[deck] and previous else 0.010
+                speed = delta * jog_scale * 1.8 / (720 * elapsed)
+                flx4_scratch_last[deck] = now
+                send(K['jog'], 4, deck, 0, speed, jog_pos[deck]); jog_moved(deck); return
             if c == 0x29: delta *= 10
             send(K['jog'], 4, deck, int(delta * jog_scale), float(delta), jog_pos[deck]); jog_moved(deck); return
     elif ch == 4:
