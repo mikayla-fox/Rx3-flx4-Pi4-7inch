@@ -87,7 +87,9 @@ jog_last = {1: 0.0, 2: 0.0}; jog_active = {1: False, 2: False}
 # needle work; speed alone moves nothing there. These controllers send 720 ticks per rotation: 9 pulses per tick.
 JOG_PULSES_PER_TICK = 6480 // 720
 jog_pos = {1: 0, 2: 0}
-flx4_scratch_last = {1: None, 2: None}
+flx4_scratch_touch = {1: False, 2: False}
+flx4_scratch_ticks = {1: None, 2: None}
+jog_lock = threading.Lock()
 def jog_stop(deck):
     if jog_active[deck]: jog_active[deck] = False; send(K['jog'], 4, deck, 0, 0.0, jog_pos[deck])
 def jog_moved(deck): jog_last[deck] = time.time(); jog_active[deck] = True
@@ -95,9 +97,27 @@ def jog_watchdog():
     while True:
         time.sleep(0.03); now = time.time()
         for d in (1, 2):
-            if jog_active[d] and now - jog_last[d] > 0.08: jog_stop(d)
+            with jog_lock:
+                if jog_active[d] and now - jog_last[d] > 0.08: jog_stop(d)
 threading.Thread(target=jog_watchdog, daemon=True).start()
 jog_scale = float(os.environ.get('RX3_JOG_SCALE', '1'))
+
+def flush_flx4_scratch(elapsed):
+    for deck in (1, 2):
+        ticks = flx4_scratch_ticks[deck]
+        if ticks is not None:
+            flx4_scratch_ticks[deck] = None
+            speed = ticks * jog_scale * 1.8 / (720 * elapsed)
+            send(K['jog'], 4, deck, 0, speed, jog_pos[deck])
+
+def flx4_scratch_clock():
+    previous = time.monotonic()
+    while True:
+        time.sleep(0.010)
+        with jog_lock:
+            now = time.monotonic()
+            flush_flx4_scratch(now - previous)
+            previous = now
 
 # The RX3 starts its native four-beat loop on a sustained LOOP IN press.
 AUTO_LOOP_HOLD_SECONDS = 1.2
@@ -185,10 +205,13 @@ def note(status, n, vel):
             loop_in(deck, 'physical', down)
             return
         if name == 'jogtouch':
-            if ctl_id == 'flx4':
-                flx4_scratch_last[deck] = 0.0 if down else None
-            if not down: jog_stop(deck)     # the RX3 needs a zero jog report or Play stays blocked after a scratch
-            press(K['jogtouch'], deck, down); return
+            with jog_lock:
+                if ctl_id == 'flx4':
+                    flx4_scratch_touch[deck] = down
+                    if not down: flx4_scratch_ticks[deck] = None
+                if not down: jog_stop(deck)     # Zero includes the latest absolute position.
+                press(K['jogtouch'], deck, down)
+            return
         if name == 'hpcue': press(K['hpcue'], deck, down); return
         if name: press(K[name], deck, down); return
     if ch in (4, 5):                        # BEAT FX section
@@ -258,18 +281,17 @@ def cc(status, c, v):
         if c in (0x24, 0x27, 0x2B, 0x2F, 0x33): return   # LSB echoes of the knobs, ignore
         if c in JOG_CC:
             delta = v - 64                  # the controller sends 64 +/- ticks
-            jog_pos[deck] = (jog_pos[deck] + round(delta * JOG_PULSES_PER_TICK * jog_scale)) & 0xFFFF
-            if ctl_id == 'flx4' and c == 0x22 and flx4_scratch_last[deck] is not None:
-                # RX3 jog speed is seconds of audio moved per second, not MIDI ticks.
-                now = time.monotonic()
-                previous = flx4_scratch_last[deck]
-                # Bound the interval for queued MIDI packets and the first tick after idle.
-                elapsed = max(0.005, now - previous) if jog_active[deck] and previous else 0.010
-                speed = delta * jog_scale * 1.8 / (720 * elapsed)
-                flx4_scratch_last[deck] = now
-                send(K['jog'], 4, deck, 0, speed, jog_pos[deck]); jog_moved(deck); return
-            if c == 0x29: delta *= 10
-            send(K['jog'], 4, deck, int(delta * jog_scale), float(delta), jog_pos[deck]); jog_moved(deck); return
+            with jog_lock:
+                jog_pos[deck] = (jog_pos[deck] + round(delta * JOG_PULSES_PER_TICK * jog_scale)) & 0xFFFF
+                if ctl_id == 'flx4' and c == 0x22 and flx4_scratch_touch[deck]:
+                    # FLX4 often sends single ticks in a burst. Their count over the
+                    # sample window carries the speed, even when each tick is identical.
+                    flx4_scratch_ticks[deck] = (flx4_scratch_ticks[deck] or 0) + delta
+                else:
+                    if c == 0x29: delta *= 10
+                    send(K['jog'], 4, deck, int(delta * jog_scale), float(delta), jog_pos[deck])
+                jog_moved(deck)
+            return
     elif ch == 4:
         if c == 0x02: msb[(4, 2)] = v; return
         if c == 0x22: analog(K['fxdepth'], 0, (msb.get((4, 2), 0) << 7 | v) / 16383.0); return
@@ -290,6 +312,8 @@ elif found:
 else:
     print('controller-bridge: no known DJ controller connected (%s)' % ', '.join(c['name'] for c in controllers.CONTROLLERS.values()), file=sys.stderr); sys.exit(1)
 CTL = controllers.CONTROLLERS[ctl_id]
+if ctl_id == 'flx4':
+    threading.Thread(target=flx4_scratch_clock, daemon=True).start()
 dev = sys.argv[1] if len(sys.argv) > 1 else (controllers.midi_device(found[0][0]) if found else None)
 if not dev: print('controller-bridge: %s has no MIDI device' % CTL['name'], file=sys.stderr); sys.exit(1)
 print('controller-bridge: %s on %s' % (CTL['name'], dev), flush=True)
