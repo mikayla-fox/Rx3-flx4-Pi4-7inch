@@ -38,7 +38,7 @@ desktop_packages() {
     local installed=()
     local candidates=(
         # Browsers, remote desktop, and Raspberry Pi desktop utilities
-        chromium chromium-browser chromium-common chromium-l10n chromium-sandbox
+        chromium chromium-browser chromium-common chromium-l10n chromium-sandbox rpi-chromium-mods
         realvnc-vnc-server rpi-connect
         agnostics rpi-imager piclone rp-bookshelf rp-prefapps rpi-userguide
         # Editors and learning tools
@@ -52,7 +52,7 @@ desktop_packages() {
         # Printing tools and drivers
         cups cups-browsed cups-client cups-common cups-core-drivers
         cups-daemon cups-filters cups-filters-core-drivers cups-ipp-utils
-        cups-ppdc cups-server-common printer-driver-gutenprint rpinters
+        cups-ppdc cups-server-common hplip printer-driver-gutenprint printer-driver-hpcups rpinters
         system-config-printer system-config-printer-common system-config-printer-udev
     )
 
