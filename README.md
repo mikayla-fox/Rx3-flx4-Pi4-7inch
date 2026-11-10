@@ -77,6 +77,18 @@ Update mode preserves the existing recovered firmware/runtime and settings, save
 
 See [the Pi 4 installation notes](docs/PI4-INSTALL.md), [controller key map](KEYMAP.md), and [upstream detailed installation reference](INSTALL.md).
 
+## Optional Pi cleanup
+
+On a Raspberry Pi OS Desktop installation dedicated to RX3, you can remove unused desktop apps such as Chromium, LibreOffice, and printing tools. From the repository root, preview what APT would remove:
+
+```bash
+./provision.sh --packages
+```
+
+If the list matches what you want to remove, run `./provision.sh --apply-packages` and review APT's confirmation. The helper checks for unexpected removals and skips automatic dependency removal. It runs separately from the RX3 installer. Cleanup was tested on the RX3 Pi, and a fresh SSH connection worked afterward.
+
+See the [optional provisioning guide](INSTALL.md#optional-pi-provisioning) for details. Credit to **ghztomash** and [StandaloneMixxx](https://github.com/ghztomash/StandaloneMixxx) for the provisioning workflow this helper builds on.
+
 ## Firmware is not included
 
 No Pioneer code, firmware image, decryption key, or patched player binary is in this repository, and
