@@ -2,6 +2,14 @@
 
 Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **original Raspberry Pi 7-inch 800×480 DSI touchscreen**, and a **Pioneer DDJ-FLX4**. Based on [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4).
 
+## v1.3.0
+
+The shared installer supports Pi 4 and Pi 5 with automatic, DSI or HDMI display selection and optional framebuffer, rotation and touch overrides. The Pi 4 DSI update and Pi 5 HDMI fresh install were tested. See the [installation guide](docs/PI4-INSTALL.md) for options.
+
+On the DDJ-FLX4, **4 BEAT/EXIT** sends the native LOOP IN hold event immediately. Both decks passed playback loop entry, exit, re-entry and length adjustment on Pi 4. The cue-standby change also lets a stopped deck arm a four-beat loop and lets the jog rim and top reposition the playhead. The Deck 1 diagnostic verified stopped loop arming, loop playback and saved CUE recall. Full two-deck regression testing of the combined cue-standby update and Pi 5 controller testing are pending.
+
+The FLX4 changes extend the controller bridge from [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4), whose mapping references [Mixxx controller mappings](https://github.com/mixxxdj/mixxx/tree/main/res/controllers). The cue-standby transition follows the behavior observed in the RX3 firmware's own Beat Jump path.
+
 ## Included controller mappings
 
 | Controller | Mapping status |
@@ -34,7 +42,7 @@ The trial uses the existing RX3 bridge and requires no external mapping XML.
 
 **4 BEAT/EXIT** uses the RX3 firmware’s native four-beat loop. Press once to start a loop and again to exit. The current pad mode stays selected, including Gate Cue. Tested on the Raspberry Pi with a DDJ-FLX4.
 
-## Latest combined build — v9b + tested browse-knob fix, 5 November 2026
+## Host UI and browse-knob update — 5 November 2026
 
 The previously separate host-side updates are now included in the source and installer:
 
@@ -72,7 +80,7 @@ Screenshots from the Pi trials on the original 800×480 display. The main, SOURC
 
 ## Install
 
-Use Raspberry Pi OS/Debian 13 (trixie), 64-bit, and run as your normal user:
+Use 64-bit Raspberry Pi OS or Debian 13 (trixie) on a Pi 4 or Pi 5. The Pi 4 with the original DSI touchscreen is the hardware-tested baseline. Pi 5 and other screen combinations are available for testing. Run as your normal user:
 
 ```bash
 git clone https://github.com/mikayla-fox/Rx3-flx4-Pi4-7inch.git ~/Rx3-flx4
@@ -89,18 +97,22 @@ Keep your current checkout, and use a **separate new checkout** so local trial e
 ```bash
 git clone https://github.com/mikayla-fox/Rx3-flx4-Pi4-7inch.git ~/Rx3-flx4-v9b
 cd ~/Rx3-flx4-v9b
-# Reuse the recovered files from the original checkout.
-old="$HOME/Rx3-flx4/rx3-handoff"
-ln -sT "$old/extracted" rx3-handoff/extracted &&
-ln -sT "$old/runtime-symlinks.json" rx3-handoff/runtime-symlinks.json &&
 bash install-rx3.sh --update
 ```
 
-Set `old` to the original checkout's `rx3-handoff` directory if you installed it elsewhere.
+Copy any local `rx3.conf` and `rx3-display.conf` from the old checkout’s `rx3-handoff` directory before updating. Update mode preserves the existing runtime and firmware settings, saves the old host binaries, shim and service/rule files, and configures RX3 to use the new checkout. It prints the backup location. Activate with a full reboot when ready; do not apply while performing a DJ set. Keep the previous checkout and backup until the combined install is verified.
 
-Update mode preserves the existing recovered firmware/runtime and settings, saves the old host binaries, shim and service/rule files, and configures RX3 to use the new checkout. It prints the backup location. Activate with a full reboot when ready; do not apply while performing a DJ set. Keep the previous checkout and backup until the combined install is verified.
+See [the Pi 4 and Pi 5 installation notes](docs/PI4-INSTALL.md), [controller key map](KEYMAP.md), and [upstream detailed installation reference](INSTALL.md).
 
-See [the Pi 4 installation notes](docs/PI4-INSTALL.md), [controller key map](KEYMAP.md), and [upstream detailed installation reference](INSTALL.md).
+### Display options
+
+The default detects the framebuffer as in the original Pi 4 setup. To choose
+DSI or HDMI, add `--display dsi` or `--display hdmi` to either install mode.
+The screen must be enabled by Raspberry Pi OS and connected at boot. Add
+`--rotate 90`, `180` or `270` if needed, and use `--framebuffer /dev/fb1`
+when selecting a specific framebuffer. A USB mouse works with a non-touch screen.
+See the [board and display setup](docs/PI4-INSTALL.md#board-and-display-setup)
+for touchscreen selection and testing.
 
 ## Optional Pi cleanup
 

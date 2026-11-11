@@ -23,13 +23,59 @@ rx3_gid_of(){  getent group "$1" 2>/dev/null | cut -d: -f3; }
 RX3_GROUPS="${RX3_GROUPS:-$(printf '%s,%s,%s' "$(rx3_gid_of audio)" "$(rx3_gid_of video)" "$(rx3_gid_of input)")}"
 # Optional per-machine settings (RX3_FB, RX3_ROTATE, RX3_FONT ...): see INSTALL.md "Display".
 [ -f "$RX3_HOME/rx3.conf" ] && . "$RX3_HOME/rx3.conf"
-# Which framebuffer to draw on. A DSI panel such as the Raspberry Pi Touch Display 2 is its own DRM device
-# and gets its own /dev/fbN alongside HDMI, so prefer it when present; otherwise the first framebuffer.
+# Installer-managed display choices can override the existing rx3.conf defaults.
+[ ! -f "$RX3_HOME/rx3-display.conf" ] || . "$RX3_HOME/rx3-display.conf"
+RX3_DISPLAY="${RX3_DISPLAY:-auto}"
+RX3_TOUCH_DEVICE="${RX3_TOUCH_DEVICE:-auto}"
+rx3_board(){
+  local compatible="${1:-/proc/device-tree/compatible}"
+  if grep -aq 'brcm,bcm2711' "$compatible" 2>/dev/null; then
+    echo pi4
+  elif grep -aq 'brcm,bcm2712' "$compatible" 2>/dev/null; then
+    echo pi5
+  else
+    echo unknown
+  fi
+}
+RX3_BOARD=$(rx3_board)
 rx3_pick_fb(){
-  for f in /sys/class/graphics/fb[0-9]*; do
-    case "$(cat "$f/name" 2>/dev/null)" in *dsi*) echo "/dev/$(basename "$f")"; return;; esac
+  local graphics="${1:-/sys/class/graphics}" drm="${2:-/sys/class/drm}" devices="${3:-/dev}"
+  local fb device card card_device connector status matches other
+  for fb in "$graphics"/fb[0-9]*; do
+    [ -e "$devices/${fb##*/}" ] || continue
+    if [ "$RX3_DISPLAY" = auto ]; then
+      case "$(cat "$fb/name" 2>/dev/null)" in *dsi*) echo "$devices/${fb##*/}"; return;; esac
+      continue
+    fi
+    device=$(readlink -e "$fb/device") || continue
+    for card in "$drm"/card[0-9]*; do
+      [[ ${card##*/} =~ ^card[0-9]+$ ]] || continue
+      card_device=$(readlink -e "$card/device") || continue
+      if [ "$card_device" != "$device" ] && [ "$(readlink -e "$card")" != "$device" ]; then
+        continue
+      fi
+      matches=0; other=0
+      for connector in "$drm/${card##*/}"-*; do
+        [ -r "$connector/status" ] || continue
+        read -r status < "$connector/status"
+        [ "$status" = connected ] || continue
+        case "$RX3_DISPLAY:${connector##*/}" in
+          dsi:*-DSI-*|hdmi:*-HDMI-*) matches=1;;
+          *) other=1;;
+        esac
+      done
+      if [ "$matches" = 1 ] && [ "$other" = 0 ]; then
+        echo "$devices/${fb##*/}"
+        return
+      fi
+    done
   done
-  for f in /dev/fb[0-9]*; do [ -e "$f" ] && { echo "$f"; return; }; done
+  if [ "$RX3_DISPLAY" = auto ]; then
+    for fb in "$graphics"/fb[0-9]*; do
+      [ ! -e "$devices/${fb##*/}" ] || { echo "$devices/${fb##*/}"; return; }
+    done
+  fi
+  return 0
 }
 RX3_FB="${RX3_FB:-$(rx3_pick_fb)}"
 RX3_ROTATE="${RX3_ROTATE:-}"          # 0/90/180/270 clockwise; empty = portrait panels 90, landscape 0

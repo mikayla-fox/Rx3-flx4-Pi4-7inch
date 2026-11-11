@@ -98,25 +98,8 @@ def jog_watchdog():
 threading.Thread(target=jog_watchdog, daemon=True).start()
 jog_scale = float(os.environ.get('RX3_JOG_SCALE', '1'))
 
-# The RX3 starts its native four-beat loop on a sustained LOOP IN press.
-AUTO_LOOP_HOLD_SECONDS = 1.2
-loop_in_sources = {1: set(), 2: set()}
-loop_in_lock = threading.Lock()
-
-def loop_in(deck, source, down):
-    # A physical LOOP IN release must not cut short the synthetic hold.
-    with loop_in_lock:
-        sources = loop_in_sources[deck]
-        was_down = bool(sources)
-        if down:
-            if source in sources:
-                return False
-            sources.add(source)
-        else:
-            sources.discard(source)
-        if was_down != bool(sources):
-            press(K['loopin'], deck, bool(sources))
-        return True
+# Track physical LOOP IN so a synthetic sequence cannot release it.
+physical_loop_in = {1: False, 2: False}
 
 def note(status, n, vel):
     ch = status & 0x0F; down = (status & 0xF0) == 0x90 and vel > 0
@@ -162,10 +145,11 @@ def note(status, n, vel):
                 time.sleep(0.08)
                 press(K['reloop'], deck, False)
             elif ctl_id == 'flx4':
-                if loop_in(deck, 'auto', True):
-                    release = threading.Timer(AUTO_LOOP_HOLD_SECONDS, loop_in, (deck, 'auto', False))
-                    release.daemon = True
-                    release.start()
+                if not physical_loop_in[deck]:
+                    send(0xFFFC, 0, deck)  # Leave cue standby before arming.
+                    # Send the native hold event without waiting for its timer.
+                    for operation in (0, 1, 2):
+                        send(K['loopin'], operation, deck)
             else:
                 # No active loop: use BEAT LOOP pad 5.
                 was_mode = pad_mode[deck]
@@ -181,9 +165,13 @@ def note(status, n, vel):
             return
         name = DECK_NOTES.get(n)
         if name == 'loopin' and ctl_id == 'flx4':
-            loop_in(deck, 'physical', down)
+            if physical_loop_in[deck] != down:
+                physical_loop_in[deck] = down
+                press(K['loopin'], deck, down)
             return
         if name == 'jogtouch':
+            if down and ctl_id == 'flx4':
+                send(0xFFFC, 0, deck)
             if not down: jog_stop(deck)     # the RX3 needs a zero jog report or Play stays blocked after a scratch
             press(K['jogtouch'], deck, down); return
         if name == 'hpcue': press(K['hpcue'], deck, down); return
@@ -257,6 +245,8 @@ def cc(status, c, v):
             delta = v - 64                  # the controller sends 64 +/- ticks
             jog_pos[deck] = (jog_pos[deck] + round(delta * JOG_PULSES_PER_TICK * jog_scale)) & 0xFFFF
             if c == 0x29: delta *= 10
+            if ctl_id == 'flx4' and not jog_active[deck]:
+                send(0xFFFC, 0, deck)
             send(K['jog'], 4, deck, int(delta * jog_scale), float(delta), jog_pos[deck]); jog_moved(deck); return
     elif ch == 4:
         if c == 0x02: msb[(4, 2)] = v; return

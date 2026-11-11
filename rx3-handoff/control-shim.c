@@ -7,6 +7,27 @@ extern int close(int);
 extern char *program_invocation_short_name;
 extern int pthread_create(unsigned long*,const void*,void *(*)(void*),void*);
 struct command {int key,operation,channel,value;float analog;int extra;};
+/* RX3 v1.19: mirror Beat Jump's cue-standby exit without seeking.
+   Only explicit FLX4 jog/loop commands request this transition. */
+static void leave_cue_standby(int channel) {
+ if(channel < 1 || channel > 2)return;
+ void *engine=*(void **)0x011492d8;
+ void *play_engine=*(void **)0x011497d0;
+ if(!engine || !play_engine)return;
+ int deck=channel-1;
+ _Bool (*loaded)(void*,int)=(void*)0x4518c;
+ _Bool (*playing)(void*,int)=(void*)0x45984;
+ int (*set_to_back_cue)(void*,_Bool)=(void*)0x65618;
+ if(!loaded(engine,deck) || playing(engine,deck))return;
+ void **players=*(void ***)((char *)play_engine+12);
+ void **end=*(void ***)((char *)play_engine+16);
+ if(!players || end-players<=deck || !players[deck])return;
+ char *player=players[deck];
+ if(*(volatile unsigned char *)(player+0xed4) &&
+    *(volatile int *)(player+0xed8)==0)
+  set_to_back_cue(player,0);
+}
+
 /* State query (key 0xFFFF on the control FIFO): dump engine state via the firmware's own DjEngineIF getters to /tmp/rx3-query.txt. */
 static char *putnum(char *p,long v){char t[16];int n=0;if(v<0){*p++='-';v=-v;}do{t[n++]='0'+v%10;v/=10;}while(v);while(n)*p++=t[--n];return p;}
 static char *putf(char *p,float f){long m=(long)(f*1000+(f<0?-0.5f:0.5f));p=putnum(p,m/1000);*p++='.';long r=m<0?-m%1000:m%1000;*p++='0'+r/100;*p++='0'+(r/10)%10;*p++='0'+r%10;return p;}
@@ -169,6 +190,7 @@ static void *control_thread(void *unused){
  const char ready[]="RX3 control adapter ready\n";write(2,ready,sizeof(ready)-1);
  struct command c;unsigned have=0;
  for(;;){int n=read(fd,(char*)&c+have,sizeof(c)-have);if(n<=0){sleep(1);continue;}have+=n;if(have<sizeof(c))continue;have=0;
+  if(c.key==0xFFFC){leave_cue_standby(c.channel);continue;}
   if(c.key==0xFFFF){query_state();continue;}
   if(c.key==0xFFFE){apply_quantize();continue;}
   if(c.key<0||c.key>65535||c.operation<0||c.operation>15||c.channel<0||c.channel>2)continue;

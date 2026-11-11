@@ -24,9 +24,17 @@ done
 
 # --- pointer bridge (only while the player runs) ---
 pgrep -x rbp-pi >/dev/null || exit 0
+[ -n "$RX3_FB" ] && [ -e "$RX3_FB" ] || exit 0
+case "$RX3_TOUCH_DEVICE" in
+  auto) ;;
+  mouse) touch="";;
+  *) touch=""
+     [ ! -c "$RX3_TOUCH_DEVICE" ] || touch=$RX3_TOUCH_DEVICE;;
+esac
 if [ -n "$touch" ]; then mode=""; dev=$touch; elif [ -n "$mouse" ]; then mode="--mouse"; dev=$mouse; else exit 0; fi
+dev=$(readlink -e "$dev") || exit 0
 cur=$(pgrep -a -f "^$B" | head -1)
-case "$cur" in *"$dev"*) exit 0;; esac          # already bridging this device
+case "$cur " in *" $dev "*) exit 0;; esac        # already bridging this device
 systemctl stop rx3-pointer.service 2>/dev/null; pkill -f "^$B"; sleep 0.3
 systemd-run --quiet --unit=rx3-pointer --collect -p User=$RX3_USER -p StandardError=append:$RX3_USERHOME/rx3-touch.log \
   -E RX3_FB="$RX3_FB" -E RX3_ROTATE="$RX3_ROTATE" $B $mode $dev $R/dev/tsc2007_2-0048

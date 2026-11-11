@@ -4,6 +4,7 @@
 #   ./install.sh deps     install the Debian packages this needs
 #   ./install.sh doctor   check prerequisites only, change nothing
 #   ./install.sh          full install (binaries, udev rules, systemd unit)
+#   ./install.sh update   update host files against an existing built runtime
 #   ./install.sh desktop  stop the player and hand the Pi back to its desktop
 #   ./install.sh strays   remove only the stray "$RX3_..." directories an older script version left behind
 #   ./install.sh clean    remove everything a previous install left behind (keeps the recovered firmware)
@@ -36,6 +37,7 @@ if [ "${1:-}" = strays ]; then
 fi
 
 echo "RX3 layout"
+echo "  board   $RX3_BOARD"
 echo "  tools   $RX3_HOME"
 echo "  user    $RX3_USER"
 echo "  chroot  $RX3_ROOT"
@@ -96,25 +98,29 @@ have 7z || have bsdtar || { warn "7z missing (needed by recover-firmware.py to u
 echo
 
 stray_dirs | while IFS= read -r d; do warn "stray directory $d (left by an older script; remove with ./install.sh strays)"; done
-echo "Recovered firmware"
-RF="$RX3_HOME/extracted/runtime-files"
-NFILES=$( [ -d "$RF" ] && find "$RF" -type f 2>/dev/null | head -2000 | wc -l || echo 0 )
-if [ ! -d "$RF" ]; then
-  bad "extracted/runtime-files missing - run: python3 recover-firmware.py && python3 extract_cramfs.py"
-elif [ ! -f "$RX3_HOME/runtime-symlinks.json" ]; then
-  # extract_cramfs.py writes the symlink map last, so this exact pair means it was interrupted.
-  bad "extraction incomplete: runtime-files exists but runtime-symlinks.json does not"
-  echo "       extract_cramfs.py writes that file last, so it was interrupted or it failed." >&2
-  echo "       Re-run it and let it finish:  python3 extract_cramfs.py" >&2
-elif [ "$NFILES" -lt 100 ]; then
-  bad "extracted/runtime-files has only $NFILES files - re-run: python3 extract_cramfs.py"
+if [ "${1:-}" = update ]; then
+  [ -x "$RX3_ROOT/root/pdj/rbp-pi" ] && ok "existing RX3 runtime" || bad "existing RX3 runtime missing executable rbp-pi"
 else
-  ok "extracted/runtime-files ($NFILES+ files)"
-  ok "runtime-symlinks.json"
+  echo "Recovered firmware"
+  RF="$RX3_HOME/extracted/runtime-files"
+  NFILES=$( [ -d "$RF" ] && find "$RF" -type f 2>/dev/null | head -2000 | wc -l || echo 0 )
+  if [ ! -d "$RF" ]; then
+    bad "extracted/runtime-files missing - run: python3 recover-firmware.py && python3 extract_cramfs.py"
+  elif [ ! -f "$RX3_HOME/runtime-symlinks.json" ]; then
+    # extract_cramfs.py writes the symlink map last, so this exact pair means it was interrupted.
+    bad "extraction incomplete: runtime-files exists but runtime-symlinks.json does not"
+    echo "       extract_cramfs.py writes that file last, so it was interrupted or it failed." >&2
+    echo "       Re-run it and let it finish:  python3 extract_cramfs.py" >&2
+  elif [ "$NFILES" -lt 100 ]; then
+    bad "extracted/runtime-files has only $NFILES files - re-run: python3 extract_cramfs.py"
+  else
+    ok "extracted/runtime-files ($NFILES+ files)"
+    ok "runtime-symlinks.json"
+  fi
+  [ -f "$RX3_HOME/extracted/player/pdj/rbp" ] && ok "recovered player binary" || bad "extracted/player/pdj/rbp missing - run: python3 recover-firmware.py"
+  [ -d "$RX3_ROOT/root/pdj" ] && ok "chroot built" || warn "chroot not built yet - run ./build-rootfs.sh"
+  echo
 fi
-[ -f "$RX3_HOME/extracted/player/pdj/rbp" ] && ok "recovered player binary" || bad "extracted/player/pdj/rbp missing - run: python3 recover-firmware.py"
-[ -d "$RX3_ROOT/root/pdj" ] && ok "chroot built" || warn "chroot not built yet - run ./build-rootfs.sh"
-echo
 echo "Host install"
 if [ -f /etc/systemd/system/rx3.service ]; then ok "rx3.service installed ($(systemctl is-enabled rx3 2>/dev/null), $(systemctl is-active rx3 2>/dev/null))"
 else warn "rx3.service not installed yet - run ./install.sh (no arguments), then: sudo systemctl enable --now rx3"; fi

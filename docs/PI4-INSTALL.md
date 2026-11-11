@@ -1,8 +1,39 @@
-# Combined Pi 4 installation notes
+# Raspberry Pi 4 and 5 installation notes
 
 Target: Raspberry Pi 4B, 4 GB; original 800×480 DSI touchscreen; Debian 13/trixie; DDJ-FLX4.
 
 Use the root `install-rx3.sh` as described in the README. `--fresh` builds a new runtime; `--update` requires an existing runtime and never calls the runtime builder, preserving settings. Use a separate checkout when updating a trial installation. Both modes leave activation to a full reboot.
+
+## Board and display setup
+
+The installer checks the board, 64-bit host and ARM32 application support
+before replacing installed RX3 files. An update uses the built runtime, so
+a new checkout does not need its own copy of the extracted firmware. If your
+old checkout has local settings, copy `rx3-handoff/rx3.conf` and, if present,
+`rx3-handoff/rx3-display.conf` into the new checkout before updating.
+
+| Setup | Installer option | Hardware status |
+| --- | --- | --- |
+| Original 7-inch DSI, 800×480 | Default or `--display dsi` | Existing Pi 4 baseline tested with automatic display selection |
+| Raspberry Pi Touch Display 2 or other OS-supported DSI panel | `--display dsi`, with `--rotate 90` or `270` if needed | Trial |
+| HDMI monitor or HDMI panel with USB touch | `--display hdmi` | Trial |
+| Specific framebuffer | `--framebuffer /dev/fb1`, using the device your Pi reports | Trial |
+
+Configure panel overlays and resolutions in Raspberry Pi OS. The RX3 installer
+uses the framebuffer size reported by Linux. If multiple connector types share
+a framebuffer, boot with only the desired screen enabled or choose the
+framebuffer explicitly. For USB touch, leave `--touch auto` or pass a stable
+`--touch /dev/input/by-id/…` or `by-path` event device. Use `--touch mouse`
+to prefer a USB mouse. Touch input and the presenter share the same rotation.
+Installer choices are saved in `rx3-handoff/rx3-display.conf`. `--display auto`
+resets framebuffer selection, `--rotate auto` restores rotation detection and
+`--touch auto` restores input detection.
+
+Before testing Pi 5, boot with the chosen panel attached and use a spare system
+image for a fresh install. Check that the display and touch logs agree on
+framebuffer resolution and rotation. Test controls at the four corners,
+then verify startup, both decks, master and headphone output, and update mode.
+Repeat on Pi 4 with the original DSI screen to check for regressions.
 
 ## Verification after reboot
 
@@ -22,7 +53,9 @@ The preserved Pi-tested DRM VBlank implementation tries `/dev/dri/card1` and CRT
 
 Before changing installed files, the combined installer saves host helper executables, the existing runtime shim, systemd service and RX3 udev rules in the printed `RX3-INSTALL-BACKUP-*` folder. Keep the original checkout too. If installation fails, do not reboot until the reported error is resolved or the saved files are restored. No automatic service restart or reboot is performed by the combined entry point.
 
-The old `INSTALL.md`, `STATUS.md` and `ROADMAP.md` retain upstream research history; the root README and this file describe the combined Pi 4 install.
+The shared installer builds on the upstream Pi 5 runtime and installer in
+[mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4). The board checks,
+display selection and update path are changes in this fork.
 
 ## Checks completed for this consolidation
 

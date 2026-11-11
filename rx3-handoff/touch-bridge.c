@@ -71,7 +71,11 @@ int main(int argc,char**argv){
  int W=1280,H=720;{int fb=open(fb_device(),O_RDONLY);if(fb>=0){struct fb_var_screeninfo v;if(!ioctl(fb,FBIOGET_VSCREENINFO,&v)){W=v.xres;H=v.yres;}close(fb);}}
  struct layout L=make_layout(W,H,rotation_for(W,H));
  struct input_absinfo ax={.maximum=W-1},ay={.maximum=H-1};struct finger fingers[10]={0};
- if(!replay&&!mouse&&(ioctl(in,EVIOCGABS(ABS_MT_POSITION_X),&ax)||ioctl(in,EVIOCGABS(ABS_MT_POSITION_Y),&ay))){perror("touch ranges");return 1;}
+ int single_touch=0;
+ if(!replay&&!mouse&&(ioctl(in,EVIOCGABS(ABS_MT_POSITION_X),&ax)||ioctl(in,EVIOCGABS(ABS_MT_POSITION_Y),&ay))){
+  if(ioctl(in,EVIOCGABS(ABS_X),&ax)||ioctl(in,EVIOCGABS(ABS_Y),&ay)){perror("touch ranges");return 1;}
+  single_touch=1;
+ }
  fprintf(stderr,"touch bridge: %s, panel %dx%d rotate %d, logical %dx%d, firmware %dx%d at %d,%d, touch %d..%d x %d..%d\n",
   mouse?"mouse":replay?"replay (firmware coordinates)":"touchscreen",W,H,L.rot,L.LW,L.LH,L.cw,L.ch,L.cx,L.cy,ax.minimum,ax.maximum,ay.minimum,ay.maximum);
  if(mouse){fingers[0].x=L.LW/2;fingers[0].y=L.LH/2;state->cursor_x=fingers[0].x;state->cursor_y=fingers[0].y;state->cursor_visible=1;fprintf(stderr,"mouse mode: left=touch, wheel=browse, right=back, middle=enter\n");}
@@ -89,6 +93,11 @@ int main(int argc,char**argv){
      if(e.code==REL_WHEEL&&e.value)command(0x420c,4,0,e.value>0?-1:1,0);}
     if(e.type==EV_KEY){if(e.code==BTN_LEFT)f->down=e.value;if(e.code==BTN_RIGHT&&e.value<2)command(0x420d,e.value?0:2,0,0,0);if(e.code==BTN_MIDDLE&&e.value<2)command(0x420c,e.value?0:2,0,0,0);}
     state->cursor_x=f->x;state->cursor_y=f->y;}
+   else if(single_touch){
+    if(e.type==EV_ABS && e.code==ABS_X)fingers[0].x=e.value;
+    if(e.type==EV_ABS && e.code==ABS_Y)fingers[0].y=e.value;
+    if(e.type==EV_KEY && e.code==BTN_TOUCH)fingers[0].down=e.value!=0;
+   }
    else if(e.type==EV_ABS){if(e.code==ABS_MT_SLOT)slot=e.value;if(slot>=0&&slot<10){struct finger*f=&fingers[slot];if(e.code==ABS_MT_POSITION_X)f->x=e.value;if(e.code==ABS_MT_POSITION_Y)f->y=e.value;if(e.code==ABS_MT_TRACKING_ID)f->down=e.value>=0;}}
    if(e.type!=EV_SYN||e.code!=SYN_REPORT)continue;
   }

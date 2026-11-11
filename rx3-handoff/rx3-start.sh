@@ -11,7 +11,10 @@ if pgrep -x rbp-pi >/dev/null; then echo "RX3 player already running"; exit 0; f
 # The console on tty1 (Raspberry Pi OS autologins a shell there) keeps blinking its text cursor on the same
 # framebuffer the UI is drawn to. Hide it for the player's lifetime; rx3-stop.sh shows it again.
 [ -w /sys/class/graphics/fbcon/cursor_blink ] && echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null
-[ -w /sys/class/graphics/fb0/blank ] && echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null
+if [ -n "$RX3_FB" ]; then
+  blank="/sys/class/graphics/${RX3_FB##*/}/blank"
+  [ ! -w "$blank" ] || echo 0 > "$blank" 2>/dev/null
+fi
 [ -w /dev/tty1 ] && printf '\033[?25l' > /dev/tty1 2>/dev/null
 $H/mount-rx3.sh >/dev/null
 # Root helper that performs the firmware's own USB STOP unmounts (see rx3-priv.sh); its FIFO must exist before launch.
@@ -33,8 +36,7 @@ touch $R/dev/printkdrv0; mountpoint -q $R/dev/printkdrv0 || mount --bind /dev/nu
 CARD=""; CONTROLLER=""; PROFILE=""
 # Avoid power-cycling the Pi 4 BCM2711 USB hub during controller detection.
 # Keep the existing recovery behaviour on Pi 5 and other boards.
-PI4_USB=0
-if grep -aq "brcm,bcm2711" /proc/device-tree/compatible 2>/dev/null; then PI4_USB=1; fi
+
 # When the service starts well after power-on (it waits for the network), the kernel has long since enumerated
 # everything, so a controller that is still missing is wedged: cut its power straight away instead of waiting 10 s.
 first_cut=10; [ "$(cut -d. -f1 /proc/uptime)" -ge 10 ] && first_cut=1
@@ -50,7 +52,7 @@ for wait in $(seq 1 30); do                       # the controller can enumerate
   # switching (uhubctl "off" only disables the port; the device stays lit), but the RP1 has one USB_VBUS_EN
   # line for all ports, so cut that for a few seconds. Every USB device re-enumerates afterwards, which is
   # why this only runs before any media is attached, and at most twice.
-  if [ "$PI4_USB" -eq 0 ] && { [ $wait = $first_cut ] || [ $wait = $((first_cut + 12)) ]; } && ! findmnt -rn -o TARGET | grep -q "^$R/media/"; then
+  if [ "$RX3_BOARD" != pi4 ] && { [ $wait = $first_cut ] || [ $wait = $((first_cut + 12)) ]; } && ! findmnt -rn -o TARGET | grep -q "^$R/media/"; then
     chip=$(gpioinfo 2>/dev/null | awk '/^gpiochip/{c=$1} /USB_VBUS_EN/{print c}' | head -1)
     if [ -n "$chip" ] && command -v gpioset >/dev/null; then
       logger -t rx3 "no DJ controller after ${wait}s: cutting USB power (USB_VBUS_EN on $chip) for 5 s"
@@ -101,9 +103,9 @@ fi
 # finds no CRTC and creates none, so there is nothing for the presenter to draw on. rx3-env.sh picks the
 # DSI touch panel when there is one, else the first framebuffer (RX3_FB overrides).
 if [ -z "$RX3_FB" ] || [ ! -e "$RX3_FB" ]; then
-  echo "no framebuffer: the player is running but nothing can be shown."
+  echo "no framebuffer for display selection $RX3_DISPLAY: the player is running without a display."
   echo "  Connect a display (HDMI or the DSI touch panel) and reboot: framebuffers are created at boot, not on hotplug."
-  for c in /sys/class/drm/card*/card*-*; do
+  for c in /sys/class/drm/card*-*; do
     [ -e "$c/status" ] && echo "  $(basename "$c"): $(cat "$c/status")"
   done
 elif [ ! -x $RX3_BINDIR/rx3-fb-present ]; then
