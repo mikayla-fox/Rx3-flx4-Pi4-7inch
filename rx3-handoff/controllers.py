@@ -4,7 +4,7 @@
 The FLX4 and DDJ-400 share the original bridge layout. The GRV6 and FLX6
 use input-only trial profiles for RX3 decks 1 and 2.
 
-Detection uses the sound card's USB id (/proc/asound/cardN/usbid), falling back to the card name. Cards are
+Detection uses the sound card's USB id (/proc/asound/cardN/usbid), falling back to an exact ALSA model ID for Pioneer USB devices or cards without a USB ID. Cards are
 enumerated in the order they were plugged in, so with two controllers attached the first one wins.
 
 CLI:  controllers.py detect        -> "card=2 id=flx4 name=DDJ-FLX4 alsa=DDJFLX4" for the controller in use (exit 1: none)
@@ -18,7 +18,7 @@ SYSEX_DDJ400_INIT    = bytes([0xF0, 0x00, 0x40, 0x05, 0x00, 0x00, 0x02, 0x06, 0x
 
 CONTROLLERS = {
     'flx4': dict(
-        name='DDJ-FLX4', usb=('2b73:0045',), alsa_hint='FLX4',
+        name='DDJ-FLX4', usb=('2b73:0045',), alsa_ids=('FLX4', 'DDJFLX4'),
         # Only reports controls (and keeps its audio path alive) while the host polls it every 200 ms (Mixxx: "reverse
         # engineered with Wireshark").
         keepalive=SYSEX_FLX4_KEEPALIVE, keepalive_period=0.2, init=None,
@@ -27,20 +27,20 @@ CONTROLLERS = {
         censor=0x0E,                 # SHIFT+PLAY on channels 0/1
     ),
     'ddj400': dict(
-        name='DDJ-400', usb=('2b73:0017',), alsa_hint='DDJ400',
+        name='DDJ-400', usb=('2b73:0017', '2b73:0026'), alsa_ids=('DDJ400',),
         # No keep-alive needed (Mixxx runs it without one); it sends this status request once at start-up.
         keepalive=None, keepalive_period=0, init=SYSEX_DDJ400_INIT,
         fxch={(4, 0x10): 0, (4, 0x11): 1, (4, 0x14): 'master'},
         censor=0x47,
     ),
     'grv6': dict(
-        name='DDJ-GRV6', usb=('2b73:004c',), alsa_hint='DDJGRV6',
+        name='DDJ-GRV6', usb=('2b73:004c',), alsa_ids=('DDJGRV6', 'GRV6'),
         keepalive=None, keepalive_period=0, init=None,
         fxch={(4, 0x10): 0, (4, 0x11): 1, (4, 0x14): 'master'},
         censor=None, trial=True,
     ),
     'flx6': dict(
-        name='DDJ-FLX6', usb=('2b73:0038',), alsa_hint='DDJFLX6',
+        name='DDJ-FLX6', usb=('2b73:0038',), alsa_ids=('DDJFLX6', 'FLX6'),
         keepalive=None, keepalive_period=0, init=None,
         fxch={}, censor=None, trial=True,
     ),
@@ -57,9 +57,13 @@ def detect(asound='/proc/asound'):
         try: idx = int(os.path.basename(d)[4:])
         except ValueError: continue
         usbid, alsa = _read(os.path.join(d, 'usbid')).lower(), _read(os.path.join(d, 'id'))
-        for cid, c in CONTROLLERS.items():
-            if usbid in c['usb'] or (not usbid and c['alsa_hint'] in alsa):
-                found.append((idx, cid, alsa)); break
+        controller = next((cid for cid, profile in CONTROLLERS.items()
+                           if usbid in profile['usb']), None)
+        if controller is None and (not usbid or usbid.startswith('2b73:')):
+            controller = next((cid for cid, profile in CONTROLLERS.items()
+                               if alsa.upper() in profile['alsa_ids']), None)
+        if controller is not None:
+            found.append((idx, controller, alsa))
     return sorted(found)
 
 def midi_device(card_index):

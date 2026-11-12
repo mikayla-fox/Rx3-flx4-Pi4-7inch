@@ -266,12 +266,10 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for f in 97-rx3-input.rules 99-rx3-usb.rules; do
   sed "s|@RX3_HOME@|$RX3_HOME|g" "$RX3_HOME/$f.in" > "$tmp/$f"
 done
-# One rule per known controller (controllers.py is the single list): when its sound card appears, move the player onto it.
+# Match Pioneer sound-card events. The hotplug helper selects a supported model via controllers.py.
 {
   echo "# Known DJ controllers ($(python3 "$RX3_HOME/controllers.py" names)): sound card hot-plug -> controller-hotplug.sh"
-  for id in $(python3 "$RX3_HOME/controllers.py" usbids); do
-    echo "ACTION==\"add\", SUBSYSTEM==\"sound\", KERNEL==\"card*\", ATTRS{idVendor}==\"${id%%:*}\", ATTRS{idProduct}==\"${id##*:}\", RUN+=\"/usr/bin/systemd-run --no-block $RX3_HOME/controller-hotplug.sh\""
-  done
+  echo "ACTION==\"add\", SUBSYSTEM==\"sound\", KERNEL==\"card*\", ATTRS{idVendor}==\"2b73\", RUN+=\"/usr/bin/systemd-run --no-block $RX3_HOME/controller-hotplug.sh %k\""
 } > "$tmp/98-rx3-controller.rules"
 sudo rm -f /etc/udev/rules.d/98-rx3-flx4.rules
 sed "s|@RX3_HOME@|$RX3_HOME|g" "$RX3_HOME/rx3.service.in" > "$tmp/rx3.service"

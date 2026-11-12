@@ -7,6 +7,11 @@ sleep 3
 . "$(dirname "$(readlink -f "$0")")/rx3-env.sh"
 systemctl is-active --quiet rx3 || exit 0
 det=$(python3 "$RX3_HOME/controllers.py" detect 2>/dev/null) || exit 0
+# Ignore unrelated Pioneer devices and controllers that weren't selected.
+selected=${det#card=}
+if [[ -n "${1:-}" && "$1" != "card${selected%% *}" ]]; then
+  exit 0
+fi
 card=${det##*alsa=}; name=$(echo "$det" | sed 's/.*name=\([^ ]*\).*/\1/')
 if grep -qx "hw:CARD=$card" "$RX3_ROOT/etc/rx3-ctl" 2>/dev/null && pgrep -x rbp-pi >/dev/null; then
   logger -t rx3 "$name reconnected; restarting its MIDI bridge (the player keeps running)"

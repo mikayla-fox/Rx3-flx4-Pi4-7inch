@@ -2,6 +2,12 @@
 
 Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **original Raspberry Pi 7-inch 800×480 DSI touchscreen**, and a **Pioneer DDJ-FLX4**. Based on [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4).
 
+## v1.3.1 – DDJ-400 Reconnect Fix and Controller Detection
+
+The installer recognises DDJ-400, DDJ-FLX4, DDJ-GRV6 and DDJ-FLX6 by known USB IDs or by Pioneer USB vendor ID and an exact supported ALSA model ID. Startup and reconnect use the same detection logic. The DDJ-400 with USB ID `2b73:0026` was tested on Pi 4 at boot and after unplugging and reconnecting. The fallback for all four models was tested with simulated devices.
+
+Credits to [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4) for the upstream controller bridge and the [Mixxx controller mapping contributors](https://github.com/mixxxdj/mixxx/tree/main/res/controllers) for the mapping and initialisation references used by the bridge. The detection fix is based on USB and ALSA diagnostics from the Pi 4 hardware test.
+
 ## v1.3.0
 
 The shared installer supports Pi 4 and Pi 5 with automatic, DSI or HDMI display selection and optional framebuffer, rotation and touch overrides. The Pi 4 DSI update and Pi 5 HDMI fresh install were tested. See the [installation guide](docs/PI4-INSTALL.md) for options.
@@ -15,7 +21,7 @@ The FLX4 changes extend the controller bridge from [mutlisensor/Rx3-flx4](https:
 | Controller | Mapping status |
 |---|---|
 | Pioneer DDJ-FLX4 | Tested on the Raspberry Pi 4B with this build. |
-| Pioneer DDJ-400 | **Untested on DDJ-400 hardware in this build.** |
+| Pioneer DDJ-400 | Tested on Pi 4 with USB ID `2b73:0026`, including boot, reconnect and controller operation. |
 | Pioneer DDJ-GRV6 | Experimental two-deck profile. **Untested on GRV6 hardware in this build.** |
 | Pioneer DDJ-FLX6 | Experimental two-deck profile. **Untested on FLX6 hardware in this build.** |
 
