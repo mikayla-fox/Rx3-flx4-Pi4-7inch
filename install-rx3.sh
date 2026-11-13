@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared Raspberry Pi 4 and 5 installer.
 set -Eeuo pipefail
-version=v1.3.1
+version=v1.3.2
 if [[ "${1:-}" == --version && "$#" -eq 1 ]]; then
  printf "RX3 installer %s\n" "$version"
  exit 0
