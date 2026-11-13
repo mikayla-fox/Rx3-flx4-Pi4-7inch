@@ -2,6 +2,10 @@
 
 Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **original Raspberry Pi 7-inch 800×480 DSI touchscreen**, and a **Pioneer DDJ-FLX4**. Based on [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4).
 
+## v1.3.3 – Touchscreen Backlight Control on Pi 4 and Pi 5
+
+Hold **BROWSE** for two seconds, then use **LCD BRIGHTNESS** in the SHORTCUT menu to adjust the physical backlight. Tested on Pi 4 with the original 7-inch touchscreen and Pi 5 with Touch Display 2. RX3 detects the backlight range automatically on systems with one backlight device.
+
 ## v1.3.2 – Automatic Display Sync for Smoother Waveforms
 
 The installer builds a presenter that matches the Linux framebuffer to its DRM device and uses the single active CRTC for vertical blank timing. It falls back to the software timer when the display cannot be selected unambiguously. On Pi 5 with Touch Display 2, manually selecting the correct CRTC made waveform scrolling much smoother. Automatic selection still needs on-device verification on Pi 4 and Pi 5.
