@@ -13,6 +13,17 @@ while read -r cmd arg <&3; do
       sync
       if mountpoint -q "$R$arg"; then umount "$R$arg" 2>/dev/null || umount -l "$R$arg"; fi
       $H/rx3-mtab.sh; logger -t rx3 "firmware unmounted $arg (USB STOP)" ;;
+    brightness)
+      [[ $arg =~ ^[1-5]$ ]] || continue
+      devices=(/sys/class/backlight/*/brightness)
+      [[ ${#devices[@]} -eq 1 && -w ${devices[0]} ]] || continue
+      maximum=$(cat "${devices[0]%/brightness}/max_brightness")
+      [[ $maximum =~ ^[1-9][0-9]{0,5}$ ]] || continue
+      # Keep the lowest setting visible and allow full brightness at level 5.
+      percentages=(20 35 50 75 100)
+      level=$(( (maximum * percentages[arg-1] + 99) / 100 ))
+      printf '%s\n' "$level" > "${devices[0]}"
+      ;;
     poweroff)
       # Only the host touch bridge requests this after a continuous 3-second hold.
       logger -t rx3 "SOURCE POWER OFF button: shutting down Raspberry Pi"
