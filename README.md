@@ -2,6 +2,10 @@
 
 Pioneer XDJ-RX3 firmware research build for a **Raspberry Pi 4B (4 GB)**, the **original Raspberry Pi 7-inch 800×480 DSI touchscreen**, and a **Pioneer DDJ-FLX4**. Based on [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4).
 
+## v1.3.2 – Automatic Display Sync for Smoother Waveforms
+
+The installer builds a presenter that matches the Linux framebuffer to its DRM device and uses the single active CRTC for vertical blank timing. It falls back to the software timer when the display cannot be selected unambiguously. On Pi 5 with Touch Display 2, manually selecting the correct CRTC made waveform scrolling much smoother. Automatic selection still needs on-device verification on Pi 4 and Pi 5.
+
 ## v1.3.1 – DDJ-400 Reconnect Fix and Controller Detection
 
 The installer recognises DDJ-400, DDJ-FLX4, DDJ-GRV6 and DDJ-FLX6 by known USB IDs or by Pioneer USB vendor ID and an exact supported ALSA model ID. Startup and reconnect use the same detection logic. The DDJ-400 with USB ID `2b73:0026` was tested on Pi 4 at boot and after unplugging and reconnecting. The fallback for all four models was tested with simulated devices.
