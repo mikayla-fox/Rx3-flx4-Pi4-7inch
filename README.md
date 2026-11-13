@@ -16,6 +16,10 @@ On the DDJ-FLX4, **4 BEAT/EXIT** sends the native LOOP IN hold event immediately
 
 The FLX4 changes extend the controller bridge from [mutlisensor/Rx3-flx4](https://github.com/mutlisensor/Rx3-flx4), whose mapping references [Mixxx controller mappings](https://github.com/mixxxdj/mixxx/tree/main/res/controllers). The cue-standby transition follows the behavior observed in the RX3 firmware's own Beat Jump path.
 
+## Pi 5 with Raspberry Pi Touch Display 2
+
+Tested on an existing Pi 5 RX3 installation switched from HDMI to DSI. With automatic touch detection and 270° rotation for the tested mounting orientation, RX3 started upright and SOURCE and BROWSE responded correctly to touch. See the [installation guide](docs/PI4-INSTALL.md#board-and-display-setup) for settings.
+
 ## Included controller mappings
 
 | Controller | Mapping status |
