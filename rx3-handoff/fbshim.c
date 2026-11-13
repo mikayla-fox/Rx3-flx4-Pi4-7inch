@@ -82,6 +82,47 @@ extern void *dlsym(void*,const char*);
 extern void *dlvsym(void*,const char*,const char*);
 extern int usleep(unsigned);extern int read(int,void*,unsigned);
 static int logresult(const char *s,int v){char h[12]=" 00000000\n";unsigned u=v;for(int i=8;i>0;i--){h[i]="0123456789abcdef"[u&15];u>>=4;}logtext(s);write(2,h,10);return v;}
+/* Forward exact firmware writes. The simulated regular file can retain old digits. */
+extern int readlink(const char *, char *, unsigned);
+extern int snprintf(char *, unsigned, const char *, ...);
+extern int strcmp(const char *, const char *);
+int write(int fd, const void *buf, unsigned size){
+ int (*real_write)(int,const void*,unsigned)=dlsym((void*)-1,"write");
+ int result=real_write(fd,buf,size);
+ int saved_errno=errno;
+ if(result==(int)size && (size==2 || size==3)){
+  const char *bytes=buf;
+  unsigned value=0;
+  for(unsigned i=0;i<size;i++){
+   if(bytes[i]<'0' || bytes[i]>'9')goto done;
+   value=value*10+(unsigned)(bytes[i]-'0');
+  }
+  const unsigned levels[]={24,57,116,200,248};
+  unsigned level=0;
+  while(level<5 && levels[level]!=value)level++;
+  if(level<5){
+   char link[48], target[512];
+   snprintf(link,sizeof link,"/hostproc/self/fd/%d",fd);
+   int n=readlink(link,target,sizeof target-1);
+   const char suffix[]="/sys/devices/platform/pwm-backlight.1/backlight/pwm-backlight.1/brightness";
+   if(n>=(int)sizeof suffix-1 && n<(int)sizeof target-1){
+    target[n]=0;
+    if(strcmp(target+n-(sizeof suffix-1),suffix)==0){
+     int out=open("/dev/rx3-priv",1|04000);
+     if(out>=0){
+      char request[]="brightness 1\n";
+      request[11]=(char)('1'+level);
+      real_write(out,request,sizeof request-1);
+      close(out);
+     }
+    }
+   }
+  }
+ }
+done:
+ errno=saved_errno;
+ return result;
+}
 void *dlopen(const char *name,int flags){static void *(*real)(const char*,int);if(!real)real=dlsym((void*)-1,"dlopen");return real(name,flags&~8);}
 /* USB STOP: the firmware unmounts /media/usbN/<part> itself (do_umount0, then do_umount1 every 10 s, then E-8307)
    but runs unprivileged in the chroot, so hand the unmount to the root helper rx3-priv.sh over /dev/rx3-priv and
