@@ -15,7 +15,8 @@ old checkout has local settings, copy `rx3-handoff/rx3.conf` and, if present,
 | Setup | Installer option | Hardware status |
 | --- | --- | --- |
 | Original 7-inch DSI, 800×480 | Default or `--display dsi` | Existing Pi 4 baseline tested with automatic display selection |
-| Raspberry Pi Touch Display 2 or other OS-supported DSI panel | `--display dsi`, with `--rotate 90` or `270` if needed | Trial |
+| Raspberry Pi Touch Display 2 on Pi 5 | `--display dsi --rotate 270 --touch auto` for the tested mounting orientation | Existing install switched from HDMI. RX3 started upright and SOURCE and BROWSE touch alignment passed. |
+| Other OS-supported DSI panels | `--display dsi`, with `--rotate 90` or `270` if needed | Trial |
 | HDMI monitor or HDMI panel with USB touch | `--display hdmi` | Trial |
 | Specific framebuffer | `--framebuffer /dev/fb1`, using the device your Pi reports | Trial |
 
@@ -29,7 +30,9 @@ Installer choices are saved in `rx3-handoff/rx3-display.conf`. `--display auto`
 resets framebuffer selection, `--rotate auto` restores rotation detection and
 `--touch auto` restores input detection.
 
-Before testing Pi 5, boot with the chosen panel attached and use a spare system
+To switch an existing Pi 5 install from HDMI to Touch Display 2, boot with the DSI panel attached and HDMI unplugged. From the installer checkout, run `bash install-rx3.sh --update --display dsi --rotate 270 --touch auto` and reboot after it succeeds. The hardware test applied the equivalent settings directly and restarted RX3. Rotation applies to the RX3 interface, so Linux boot text may still appear sideways.
+
+For further Pi 5 validation, boot with the chosen panel attached and use a spare system
 image for a fresh install. Check that the display and touch logs agree on
 framebuffer resolution and rotation. Test controls at the four corners,
 then verify startup, both decks, master and headphone output, and update mode.
