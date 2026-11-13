@@ -14,6 +14,9 @@
    its vertical blank. Without shim snapshots (an old shim) the live firmware picture is polled at the panel
    rate, as before. usage: rx3-fb-present <chroot fb file> [framebuffer] */
 #include <stdint.h>
+#include <glob.h>
+#include <limits.h>
+#include <sys/sysmacros.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -356,23 +359,57 @@ static void copy_bands(unsigned char *d,const unsigned char *back,int W,int H,in
 /* Present right after the panel's vertical blank so the copy runs ahead of the scanout; boards whose driver has
    no vsync ioctl, or whose ioctl returns at once, get a timer at the configured rate instead. */
 static int vsync_ok=1,fps=60;static long period,last_vb,next_tick;
+static int open_display_crtc(int framebuffer, unsigned int *crtc_index){
+ struct stat info;
+ char fb_link[128], fb_device_path[PATH_MAX];
+ if(fstat(framebuffer, &info) < 0 || !S_ISCHR(info.st_mode))return -1;
+ snprintf(fb_link, sizeof(fb_link), "/sys/dev/char/%u:%u/device",
+          major(info.st_rdev), minor(info.st_rdev));
+ if(!realpath(fb_link, fb_device_path))return -1;
+
+ glob_t cards = {0};
+ int result = -1;
+ if(glob("/dev/dri/card[0-9]*", 0, NULL, &cards) == 0){
+  for(size_t i = 0; i < cards.gl_pathc; i++){
+   const char *path = cards.gl_pathv[i];
+   char card_link[128], card_device[PATH_MAX];
+   snprintf(card_link, sizeof(card_link), "/sys/class/drm/%s/device", strrchr(path, '/') + 1);
+   if(!realpath(card_link, card_device) || strcmp(fb_device_path, card_device))continue;
+
+   int fd = open(path, O_RDWR | O_CLOEXEC);
+   if(fd < 0)continue;
+   drmModeRes *resources = drmModeGetResources(fd);
+   int index = -1;
+   if(resources){
+    for(int j = 0; j < resources->count_crtcs; j++){
+     drmModeCrtc *crtc = drmModeGetCrtc(fd, resources->crtcs[j]);
+     int active = crtc && crtc->mode_valid;
+     if(crtc)drmModeFreeCrtc(crtc);
+     if(!active)continue;
+     // A shared framebuffer can have multiple scanout targets. Avoid guessing.
+     if(index >= 0){ index = -1; break; }
+     index = j;
+    }
+    drmModeFreeResources(resources);
+   }
+   if(index >= 0 && index <= 31){
+    *crtc_index = (unsigned int)index;
+    result = fd;
+    fprintf(stderr, "presenter: selected %s CRTC index %u for framebuffer timing\n", path, *crtc_index);
+    break;
+   }
+   close(fd);
+  }
+ }
+ globfree(&cards);
+ return result;
+}
+
 static void wait_vblank(int dst){
- (void)dst;
  static int drm_fd = -2;
  static unsigned int crtc_index;
  if(drm_fd == -2){
-  drm_fd = open("/dev/dri/card1", O_RDWR | O_CLOEXEC);
-  if(drm_fd >= 0){
-   drmModeRes *resources = drmModeGetResources(drm_fd);
-   int index = -1;
-   if(resources){
-    for(int i = 0; i < resources->count_crtcs; i++)
-     if(resources->crtcs[i] == 92){ index = i; break; }
-    drmModeFreeResources(resources);
-   }
-   if(index < 0 || index > 31){ close(drm_fd); drm_fd = -1; }
-   else crtc_index = (unsigned int)index;
-  }
+  drm_fd = open_display_crtc(dst, &crtc_index);
   if(drm_fd < 0)
    fprintf(stderr, "presenter: DRM VBlank unavailable; using software timer\n");
  }
@@ -384,7 +421,7 @@ static void wait_vblank(int dst){
   if(drmWaitVBlank(drm_fd, &request) == 0){
    static int logged;
    if(!logged){
-    fprintf(stderr, "presenter: DRM VBlank active, card1 CRTC index %u\n", crtc_index);
+    fprintf(stderr, "presenter: DRM VBlank active, CRTC index %u\n", crtc_index);
     logged = 1;
    }
    return;
