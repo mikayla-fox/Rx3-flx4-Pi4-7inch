@@ -8,10 +8,10 @@ set -e
 SRC=$1; PORT=${2:-usb1}; R=$RX3_ROOT; H=$RX3_HOME
 PART=sda1; [ -b "$SRC" ] && PART=$(basename "$SRC")
 MP=$R/media/$PORT/$PART
-# Upper/work layers are keyed by the filesystem UUID so one device's firmware writes never shadow another's contents.
+# Key overlays by USB identity and export contents so a new export cannot be masked by an old overlay.
 KEY=$(blkid -s UUID -o value "$SRC" 2>/dev/null); KEY=${KEY:-$(basename "$SRC")}
-LOWER=$RX3_USB/$PORT/lower; UPPER=$RX3_USB/$PORT/cow-$KEY/upper; WORK=$RX3_USB/$PORT/cow-$KEY/work
-mkdir -p $LOWER $UPPER $WORK $MP
+LOWER=$RX3_USB/$PORT/lower
+mkdir -p "$LOWER" "$MP"
 for old in $R/media/$PORT/*; do mountpoint -q "$old" && umount -l "$old"; done
 mountpoint -q $LOWER && umount -l $LOWER
 OPT="ro"; [ -f "$SRC" ] && OPT="ro,loop"
@@ -19,7 +19,26 @@ OPT="ro"; [ -f "$SRC" ] && OPT="ro,loop"
 # firmware (which asks for UTF-8 paths) reports E-8306 NO FILE for tracks such as "Beto’s Horns".
 [ "$(blkid -s TYPE -o value "$SRC" 2>/dev/null)" = vfat ] && OPT="$OPT,iocharset=utf8"
 mount -o $OPT,uid=$RX3_UID,gid=$RX3_UID "$SRC" $LOWER 2>/dev/null || mount -o $OPT "$SRC" $LOWER
-chown $RX3_UID:$RX3_UID $UPPER $WORK
+# Use the physical USB's databases to identify this export.
+EXPORT_HASH=$(
+  set -o pipefail
+  {
+    for name in export.pdb exportExt.pdb exportLibrary.db; do
+      db="$LOWER/PIONEER/rekordbox/$name"
+      if [ -f "$db" ]; then
+        sha256sum -- "$db" || exit 1
+      else
+        printf 'missing %s\n' "$name"
+      fi
+    done
+  } | sha256sum
+)
+EXPORT_HASH=${EXPORT_HASH%% *}
+COW="$RX3_USB/$PORT/cow-$KEY-$EXPORT_HASH"
+UPPER="$COW/upper"
+WORK="$COW/work"
+mkdir -p "$UPPER" "$WORK"
+chown "$RX3_UID:$RX3_UID" "$UPPER" "$WORK"
 # Kernel overlayfs rejects case-insensitive (FAT) lower layers, so use fuse-overlayfs for the copy-on-write view.
 # fuse-overlayfs daemonises into the caller's cgroup, and systemd tears that cgroup down when a udev-spawned helper
 # exits (the overlay vanished 0.1 s after every hot-plug attach), so run it as its own transient unit instead.
